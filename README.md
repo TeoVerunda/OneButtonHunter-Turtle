@@ -73,16 +73,6 @@ Optional:
 /run OBH:Run(false)
 ```
 
-## Behaviour
-
-* Casts Aimed Shot when available and timing allows
-* Uses Steady Shot as main filler
-* Uses Multi-Shot and Arcane Shot based on timing windows
-* Automatically reacts to special Aimed Shot ammo via macro logic
-* Does not cast during Auto Shot to avoid clipping
-* Detects aggro in group play and casts Feign Death after a short delay
-* Prints a red chat warning when Feign Death triggers
-
 ## Notes
 
 * Designed specifically for Turtle WoW
