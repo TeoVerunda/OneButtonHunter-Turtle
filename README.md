@@ -1,5 +1,6 @@
 # One Button Hunter
 
+Designed for the new Marksman Hunter changes in Nightmares of Ursol (1.18.1)
 One Button Hunter (OBH) is a Turtle WoW Hunter addon that allows you to run your rotation through a single button while maintaining proper shot timing and avoiding Auto Shot clipping.
 
 Updated for Nightmares of Ursol and current Hunter changes.
