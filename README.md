@@ -86,5 +86,5 @@ Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OB
 On login or reload:
 
 ```
-OBH V4.4 (Chat Spam Protection) Loaded.
+OBH V5.1 (Balanced + Mark) Loaded.
 ```
