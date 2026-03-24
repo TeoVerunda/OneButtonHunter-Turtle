@@ -5,7 +5,7 @@ OBH = {}
 OBH.AutoFeign = true
 OBH.AggroDelay = 0.2 
 OBH.AlertCooldown = 3.0 
-OBH.InputLagSafety = 0.05 -- The "Scroll Wheel" fix: minimum seconds between script runs
+OBH.InputLagSafety = 0.15 -- Increased to 0.15 to prevent Scroll Wheel "command flooding"
 
 OBH.t = CreateFrame("GameTooltip", "OBH_Scanner", UIParent, "GameTooltipTemplate")
 OBH.f = CreateFrame("Frame", "OBH_Events", UIParent)
@@ -18,7 +18,7 @@ OBH.enabled = true
 OBH.baseSpeed = nil 
 OBH.aggroTime = nil 
 OBH.lastAlert = 0   
-OBH.lastRun = 0 -- Track the last time Run() actually executed
+OBH.lastRun = 0 
 
 -- Event handler
 OBH.f:SetScript("OnEvent", function()
@@ -44,7 +44,15 @@ OBH.f:SetScript("OnUpdate", function()
     end
 end)
 
-OBH.name = { [1]="Aimed Shot", [2]="Auto Shot", [3]="Steady Shot", [4]="Arcane Shot", [5]="Multi-Shot", [6]="Feign Death" }
+OBH.name = {
+    [1] = "Aimed Shot",
+    [2] = "Auto Shot",
+    [3] = "Steady Shot",
+    [4] = "Arcane Shot",
+    [5] = "Multi-Shot",
+    [6] = "Feign Death",
+}
+
 OBH.asSlot, OBH.arcSlot, OBH.ssSlot, OBH.msSlot, OBH.fdSlot = nil, nil, nil, nil, nil
 
 local function SafeGetText(lineNum)
@@ -79,13 +87,13 @@ function OBH:IsCasting()
     return string.find(text, "Casting") or string.find(text, "Aimed") or string.find(text, "Steady") or string.find(text, "Multi")
 end
 
--- MAIN ENGINE: Version 4.5 (Scroll Wheel / High-Frequency Input Protection)
+-- MAIN ENGINE: Version 4.7 (Scroll Wheel High-Stability)
 function OBH:Run(useMulti)
     local now = GT()
     
-    -- EXIT if user is scrolling faster than the engine can/should handle
+    -- Throttling: If we run too often, the 1.12.1 client drops spell requests.
     if (now - self.lastRun) < self.InputLagSafety then return end
-    self.lastRun = now -- Mark this run as successful
+    self.lastRun = now 
 
     if not self.enabled or not UnitExists("target") or UnitIsDead("target") or not UnitCanAttack("player", "target") then return end
 
@@ -96,7 +104,7 @@ function OBH:Run(useMulti)
     self.msSlot  = self.msSlot  or self:GetActionSlot(self.name[5]) or 16
     self.fdSlot  = self.fdSlot  or self:GetActionSlot(self.name[6]) or 18
 
-    -- AGGRO CONFIRMATION
+    -- AGGRO LOGIC
     local inGroup = (GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0)
     if inGroup and self.AutoFeign then
         if UnitIsUnit("targettarget", "player") then
@@ -126,8 +134,6 @@ function OBH:Run(useMulti)
     local hasteFactor = (self.baseSpeed) and (weaponSpeed / self.baseSpeed) or 1
     
     local steadyWindow = 1.7 * hasteFactor 
-    local multiWindow  = 0.6 * hasteFactor
-    local arcaneWindow = 0.3 * hasteFactor
 
     -- PRIORITY 1: Hybrid Aimed Shot
     if GetActionCooldown(self.asSlot) == 0 then
@@ -145,13 +151,13 @@ function OBH:Run(useMulti)
 
     -- PRIORITY 3: The Brothers
     if useMulti then
-        if GetActionCooldown(self.msSlot) == 0 and timeLeft > multiWindow then
+        if GetActionCooldown(self.msSlot) == 0 and timeLeft > (0.6 * hasteFactor) then
             CastSpellByName(self.name[5])
             return
         end
     end
 
-    if GetActionCooldown(self.arcSlot) == 0 and timeLeft > arcaneWindow then
+    if GetActionCooldown(self.arcSlot) == 0 and timeLeft > (0.3 * hasteFactor) then
         CastSpellByName(self.name[4])
         return
     end
@@ -162,4 +168,4 @@ function OBH:Run(useMulti)
     end
 end
 
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V4.5 (Scroll Wheel Support) Loaded.|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V4.7 (Scroll Wheel High-Stability) Loaded.|r")
