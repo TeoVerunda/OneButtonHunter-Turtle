@@ -4,14 +4,27 @@ OBH = {}
 -- CONFIGURATION
 OBH.AutoFeign = true
 OBH.AutoMark = true       
-OBH.AggroDelay = 0.2 
+OBH.MarkHealthCutoff = 10 -- Don't mark if target HP is below 10%
+OBH.MarkRetryDelay = 5.0  -- Fail-safe: Don't re-mark same target for 5s if icon is hidden
+OBH.AggroDelay = 0.5 
 OBH.AlertCooldown = 3.0 
 OBH.InputLagSafety = 0.1
 
 -- DYNAMIC CALIBRATION
 OBH.BaseSteady = 1.5      
-OBH.BufferPercent = 0.05  
-OBH.PriorityWindow = 0.1  -- The "Anti-Hiccup" threshold
+OBH.BufferPercent = 0.02 
+OBH.PriorityWindow = 0.1  
+OBH.RaidLagBuffer = 0.2  
+
+-- EMERGENCY FALLBACK SLOTS (Update if your bars differ)
+local FORCED_SLOTS = {
+    as = 13,  -- Aimed Shot
+    arc = 14, -- Arcane Shot
+    ss = 15,  -- Steady Shot
+    ms = 16,  -- Multi-Shot
+    fd = 18,  -- Feign Death
+    conc = 19 -- Concussive
+}
 
 OBH.t = CreateFrame("GameTooltip", "OBH_Scanner", UIParent, "GameTooltipTemplate")
 OBH.f = CreateFrame("Frame", "OBH_Events", UIParent)
@@ -20,6 +33,7 @@ OBH.f:RegisterEvent("STOP_AUTOREPEAT_SPELL")
 
 OBH.auto, OBH.next, OBH.enabled = false, nil, true
 OBH.baseSpeed, OBH.aggroTime, OBH.lastAlert, OBH.lastRun = nil, nil, 0, 0 
+OBH.lastMarkTime, OBH.lastMarkGUID = 0, nil 
 
 OBH.f:SetScript("OnEvent", function()
     if event == "START_AUTOREPEAT_SPELL" then
@@ -53,8 +67,6 @@ OBH.name = {
     [8] = "Concussive Shot",
 }
 
-OBH.asSlot, OBH.arcSlot, OBH.ssSlot, OBH.msSlot, OBH.fdSlot, OBH.concSlot = nil, nil, nil, nil, nil, nil
-
 local function SafeGetText(lineNum)
     local textObj = _G["OBH_ScannerTextLeft"..lineNum]
     if textObj and type(textObj.GetText) == "function" then
@@ -64,7 +76,7 @@ local function SafeGetText(lineNum)
     return ""
 end
 
-function OBH:GetActionSlot(spellName)
+function OBH:GetActionSlot(spellName, fallback)
     for i = 1, 120 do
         OBH_Scanner:SetOwner(UIParent, "ANCHOR_NONE")
         OBH_Scanner:SetAction(i)
@@ -74,7 +86,7 @@ function OBH:GetActionSlot(spellName)
         end
     end
     OBH_Scanner:Hide()
-    return nil
+    return fallback
 end
 
 function OBH:IsCasting()
@@ -88,17 +100,16 @@ function OBH:IsCasting()
 end
 
 function OBH:HasMark()
-    local i = 1
-    while true do
+    local markTex = "Interface\\Icons\\Ability_Hunter_SniperShot"
+    for i = 1, 32 do
         local texture = UnitDebuff("target", i)
         if not texture then break end
-        if texture and string.find(texture, "Ability_Hunter_SniperShot") then return true end
-        i = i + 1
+        if texture == markTex or string.find(texture, "SniperShot") then return true end
     end
     return false
 end
 
--- MAIN ENGINE: Version 6.2 (The "No Hesitation" Build)
+-- MAIN ENGINE: VERSION 6.5 (TACTICAL RAID BUILD)
 function OBH:Run(useMulti)
     local now = GT()
     if (now - self.lastRun) < self.InputLagSafety then return end
@@ -106,17 +117,25 @@ function OBH:Run(useMulti)
 
     if not self.enabled or not UnitExists("target") or UnitIsDead("target") or not UnitCanAttack("player", "target") then return end
 
-    self.asSlot   = self.asSlot   or self:GetActionSlot(self.name[1]) or 13
-    self.arcSlot  = self.arcSlot  or self:GetActionSlot(self.name[4]) or 14
-    self.ssSlot   = self.ssSlot   or self:GetActionSlot(self.name[3]) or 15
-    self.msSlot   = self.msSlot   or self:GetActionSlot(self.name[5]) or 16
-    self.fdSlot   = self.fdSlot   or self:GetActionSlot(self.name[6]) or 18
-    self.concSlot = self.concSlot or self:GetActionSlot(self.name[8]) or 19
+    -- Slot Detection Fallbacks
+    self.asSlot   = self.asSlot   or self:GetActionSlot(self.name[1], FORCED_SLOTS.as)
+    self.arcSlot  = self.arcSlot  or self:GetActionSlot(self.name[4], FORCED_SLOTS.arc)
+    self.ssSlot   = self.ssSlot   or self:GetActionSlot(self.name[3], FORCED_SLOTS.ss)
+    self.msSlot   = self.msSlot   or self:GetActionSlot(self.name[5], FORCED_SLOTS.ms)
+    self.fdSlot   = self.fdSlot   or self:GetActionSlot(self.name[6], FORCED_SLOTS.fd)
+    self.concSlot = self.concSlot or self:GetActionSlot(self.name[8], FORCED_SLOTS.conc)
 
-    -- 1. MARKING
-    if self.AutoMark and not self:HasMark() then
-        CastSpellByName(self.name[7])
-        return 
+    -- 1. TACTICAL MARKING
+    local targetID = (UnitGUID and UnitGUID("target")) or UnitName("target")
+    local targetHP = (UnitHealth("target") / UnitHealthMax("target")) * 100
+    
+    if self.AutoMark and targetHP > self.MarkHealthCutoff and not self:HasMark() then
+        if self.lastMarkGUID ~= targetID or (now - self.lastMarkTime) > self.MarkRetryDelay then
+            CastSpellByName(self.name[7])
+            self.lastMarkTime = now
+            self.lastMarkGUID = targetID
+            return 
+        end
     end
 
     -- 2. AGGRO EMERGENCY
@@ -125,7 +144,7 @@ function OBH:Run(useMulti)
         local _, cDur = GetActionCooldown(self.concSlot)
         if cDur == 0 then CastSpellByName(self.name[8]) end
         if not self.aggroTime then self.aggroTime = now 
-        elseif (now - self.aggroTime) >= OBH.AggroDelay then
+        elseif (now - self.aggroTime) >= self.AggroDelay then
             local _, fdDur = GetActionCooldown(self.fdSlot)
             if fdDur == 0 then
                 CastSpellByName(self.name[6])
@@ -148,21 +167,22 @@ function OBH:Run(useMulti)
     local _, msDur = GetActionCooldown(self.msSlot)
 
     -- Aimed Shot Check
-    if asDur <= self.PriorityWindow then
-        if timeLeft > (weaponSpeed * 0.9) or timeLeft < 0.1 then 
+    if (asDur - self.RaidLagBuffer) <= self.PriorityWindow then
+        if timeLeft > (weaponSpeed * 0.85) or timeLeft < 0.15 then 
             CastSpellByName(self.name[1])
             return
         end
     end
 
     -- Multi-Shot Check
-    if useMulti and msDur <= self.PriorityWindow and timeLeft > 0.5 then
+    if useMulti and msDur <= self.PriorityWindow and timeLeft > 0.4 then
         CastSpellByName(self.name[5])
         return
     end
 
-    -- Steady Shot Check (The "No Hesitation" Logic)
-    if timeLeft > (currentSteadyCast + dynamicBuffer) then
+    -- Steady Shot Check
+    local ssWindow = (weaponSpeed < 1.9) and 0.25 or (currentSteadyCast + dynamicBuffer)
+    if timeLeft > ssWindow then
         CastSpellByName(self.name[3])
         return
     end
@@ -179,4 +199,4 @@ function OBH:Run(useMulti)
     end
 end
 
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V6.2 (No Hesitation) Loaded.|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V6.5 (Tactical Build) Loaded.|r")
