@@ -44,6 +44,7 @@ Make sure the following abilities exist on your action bar:
 * Steady Shot
 * Arcane Shot
 * Multi-Shot
+* Serpent Sting
 * Feign Death
 * Concussive Shot
 
