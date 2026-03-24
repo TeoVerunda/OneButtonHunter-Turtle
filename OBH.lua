@@ -3,8 +3,9 @@ OBH = {}
 
 -- CONFIGURATION
 OBH.AutoFeign = true
-OBH.AggroDelay = 0.2 -- Seconds to wait before Feigning
-OBH.AlertCooldown = 3.0 -- Seconds to wait before showing the red alert again
+OBH.AggroDelay = 0.2 
+OBH.AlertCooldown = 3.0 
+OBH.InputLagSafety = 0.05 -- The "Scroll Wheel" fix: minimum seconds between script runs
 
 OBH.t = CreateFrame("GameTooltip", "OBH_Scanner", UIParent, "GameTooltipTemplate")
 OBH.f = CreateFrame("Frame", "OBH_Events", UIParent)
@@ -15,8 +16,9 @@ OBH.auto = false
 OBH.next = nil
 OBH.enabled = true
 OBH.baseSpeed = nil 
-OBH.aggroTime = nil -- Tracks when the mob first targeted us
-OBH.lastAlert = 0   -- Tracks when the last chat message was sent
+OBH.aggroTime = nil 
+OBH.lastAlert = 0   
+OBH.lastRun = 0 -- Track the last time Run() actually executed
 
 -- Event handler
 OBH.f:SetScript("OnEvent", function()
@@ -42,19 +44,9 @@ OBH.f:SetScript("OnUpdate", function()
     end
 end)
 
--- Spell Names
-OBH.name = {
-    [1] = "Aimed Shot",
-    [2] = "Auto Shot",
-    [3] = "Steady Shot",
-    [4] = "Arcane Shot",
-    [5] = "Multi-Shot",
-    [6] = "Feign Death",
-}
-
+OBH.name = { [1]="Aimed Shot", [2]="Auto Shot", [3]="Steady Shot", [4]="Arcane Shot", [5]="Multi-Shot", [6]="Feign Death" }
 OBH.asSlot, OBH.arcSlot, OBH.ssSlot, OBH.msSlot, OBH.fdSlot = nil, nil, nil, nil, nil
 
--- SAFE HELPER
 local function SafeGetText(lineNum)
     local textObj = _G["OBH_ScannerTextLeft"..lineNum]
     if textObj and type(textObj.GetText) == "function" then
@@ -87,8 +79,14 @@ function OBH:IsCasting()
     return string.find(text, "Casting") or string.find(text, "Aimed") or string.find(text, "Steady") or string.find(text, "Multi")
 end
 
--- MAIN ENGINE: Version 4.4 (Aggro Confirmation + Spam Filter)
+-- MAIN ENGINE: Version 4.5 (Scroll Wheel / High-Frequency Input Protection)
 function OBH:Run(useMulti)
+    local now = GT()
+    
+    -- EXIT if user is scrolling faster than the engine can/should handle
+    if (now - self.lastRun) < self.InputLagSafety then return end
+    self.lastRun = now -- Mark this run as successful
+
     if not self.enabled or not UnitExists("target") or UnitIsDead("target") or not UnitCanAttack("player", "target") then return end
 
     -- Load slots
@@ -98,34 +96,25 @@ function OBH:Run(useMulti)
     self.msSlot  = self.msSlot  or self:GetActionSlot(self.name[5]) or 16
     self.fdSlot  = self.fdSlot  or self:GetActionSlot(self.name[6]) or 18
 
-    ---------------------------------------
-    -- V4.4: AGGRO CONFIRMATION (With Chat Throttling)
-    ---------------------------------------
-    local now = GT()
+    -- AGGRO CONFIRMATION
     local inGroup = (GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0)
-    
     if inGroup and self.AutoFeign then
         if UnitIsUnit("targettarget", "player") then
-            -- Mob is targeting us; start/check the timer
             if not self.aggroTime then 
                 self.aggroTime = now 
             elseif (now - self.aggroTime) >= OBH.AggroDelay then
                 local fdStart, fdDur = GetActionCooldown(self.fdSlot)
                 if fdDur == 0 then
                     CastSpellByName(self.name[6])
-                    
-                    -- Only print the red message if the cooldown has passed
                     if (now - self.lastAlert) >= self.AlertCooldown then
                         DEFAULT_CHAT_FRAME:AddMessage("|cffff0000OBH: Aggro Confirmed! Feigning Death.|r")
                         self.lastAlert = now
                     end
-                    
-                    self.aggroTime = nil -- Reset timer after use
+                    self.aggroTime = nil 
                     return
                 end
             end
         else
-            -- Mob is NOT targeting us; reset the timer
             self.aggroTime = nil
         end
     end
@@ -173,4 +162,4 @@ function OBH:Run(useMulti)
     end
 end
 
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V4.4 (Chat Spam Protection) Loaded.|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V4.5 (Scroll Wheel Support) Loaded.|r")
