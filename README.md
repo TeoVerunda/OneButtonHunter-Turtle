@@ -8,6 +8,7 @@ Updated for Nightmares of Ursol and current Hunter changes.
 ## Features
 
 * One-button Hunter rotation helper
+* Applies Hunter's Mark if there isn't one on the target.
 * Prioritises Aimed Shot when off cooldown
 * Automatically detects special Aimed Shot ammo and uses the correct follow-up ability (Multi-Shot, Arcane Shot, or Serpent Sting)
 * Uses Steady Shot as filler
