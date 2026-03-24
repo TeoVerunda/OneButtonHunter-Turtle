@@ -1,14 +1,14 @@
 local GT = GetTime
 OBH = {}
 
--- CONFIGURATION (V4.8 BALANCED)
+-- CONFIGURATION
 OBH.AutoFeign = true
 OBH.AutoMark = true       
 OBH.AggroDelay = 0.2 
 OBH.AlertCooldown = 3.0 
-OBH.InputLagSafety = 0.12 -- V4.8 Balanced
-OBH.SteadyCast = 1.35     -- V4.8 Balanced
-OBH.SafetyBuffer = 0.10   -- V4.8 Balanced
+OBH.InputLagSafety = 0.12 
+OBH.SteadyCast = 1.35     
+OBH.SafetyBuffer = 0.10   
 
 OBH.t = CreateFrame("GameTooltip", "OBH_Scanner", UIParent, "GameTooltipTemplate")
 OBH.f = CreateFrame("Frame", "OBH_Events", UIParent)
@@ -23,7 +23,6 @@ OBH.aggroTime = nil
 OBH.lastAlert = 0   
 OBH.lastRun = 0 
 
--- Event handler: Syncs the hidden Ranged Swing Timer
 OBH.f:SetScript("OnEvent", function()
     if event == "START_AUTOREPEAT_SPELL" then
         OBH.auto = true
@@ -36,7 +35,6 @@ OBH.f:SetScript("OnEvent", function()
     end
 end)
 
--- OnUpdate: Predicts the next shot time
 OBH.f:SetScript("OnUpdate", function()
     if OBH.auto and OBH.next then
         local now = GT()
@@ -55,9 +53,10 @@ OBH.name = {
     [5] = "Multi-Shot",
     [6] = "Feign Death",
     [7] = "Hunter's Mark",
+    [8] = "Concussive Shot",
 }
 
-OBH.asSlot, OBH.arcSlot, OBH.ssSlot, OBH.msSlot, OBH.fdSlot = nil, nil, nil, nil, nil
+OBH.asSlot, OBH.arcSlot, OBH.ssSlot, OBH.msSlot, OBH.fdSlot, OBH.concSlot = nil, nil, nil, nil, nil, nil
 
 local function SafeGetText(lineNum)
     local textObj = _G["OBH_ScannerTextLeft"..lineNum]
@@ -91,63 +90,56 @@ function OBH:IsCasting()
     return string.find(text, "Casting") or string.find(text, "Aimed") or string.find(text, "Steady") or string.find(text, "Multi")
 end
 
--- Debuff Checker: Scans for the Hunter's Mark Texture
 function OBH:HasMark()
     local i = 1
     while true do
         local texture = UnitDebuff("target", i)
         if not texture then break end
-        if string.find(texture, "Ability_Hunter_SniperShot") then
-            return true
-        end
+        if string.find(texture, "Ability_Hunter_SniperShot") then return true end
         i = i + 1
     end
     return false
 end
 
--- MAIN ENGINE: Version 5.1 (Balanced Rotation + Mark)
 function OBH:Run(useMulti)
     local now = GT()
-    
     if (now - self.lastRun) < self.InputLagSafety then return end
     self.lastRun = now 
 
     if not self.enabled or not UnitExists("target") or UnitIsDead("target") or not UnitCanAttack("player", "target") then return end
 
-    -- Load slots
-    self.asSlot  = self.asSlot  or self:GetActionSlot(self.name[1]) or 13
-    self.arcSlot = self.arcSlot or self:GetActionSlot(self.name[4]) or 14
-    self.ssSlot  = self.ssSlot  or self:GetActionSlot(self.name[3]) or 15
-    self.msSlot  = self.msSlot  or self:GetActionSlot(self.name[5]) or 16
-    self.fdSlot  = self.fdSlot  or self:GetActionSlot(self.name[6]) or 18
+    self.asSlot   = self.asSlot   or self:GetActionSlot(self.name[1]) or 13
+    self.arcSlot  = self.arcSlot  or self:GetActionSlot(self.name[4]) or 14
+    self.ssSlot   = self.ssSlot   or self:GetActionSlot(self.name[3]) or 15
+    self.msSlot   = self.msSlot   or self:GetActionSlot(self.name[5]) or 16
+    self.fdSlot   = self.fdSlot   or self:GetActionSlot(self.name[6]) or 18
+    self.concSlot = self.concSlot or self:GetActionSlot(self.name[8]) or 19
 
-    -- 1. HUNTER'S MARK (Isolated to avoid logic overlap)
     if self.AutoMark and not self:HasMark() then
         CastSpellByName(self.name[7])
-        return -- Exit to allow GCD to settle before starting rotation
+        return 
     end
 
-    -- 2. AGGRO LOGIC
     local inGroup = (GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0)
     if inGroup and self.AutoFeign then
         if UnitIsUnit("targettarget", "player") then
+            local cStart, cDur = GetActionCooldown(self.concSlot)
+            if cDur == 0 then CastSpellByName(self.name[8]) end
+
             if not self.aggroTime then 
                 self.aggroTime = now 
             elseif (now - self.aggroTime) >= OBH.AggroDelay then
-                local fdStart, fdDur = GetActionCooldown(self.fdSlot)
-                if fdDur == 0 then
+                if GetActionCooldown(self.fdSlot) == 0 then
                     CastSpellByName(self.name[6])
                     if (now - self.lastAlert) >= self.AlertCooldown then
-                        DEFAULT_CHAT_FRAME:AddMessage("|cffff0000OBH: Aggro Confirmed! Feigning Death.|r")
+                        DEFAULT_CHAT_FRAME:AddMessage("|cffff0000OBH: Aggro Emergency! Concussive + Feign.|r")
                         self.lastAlert = now
                     end
                     self.aggroTime = nil 
                     return
                 end
             end
-        else
-            self.aggroTime = nil
-        end
+        else self.aggroTime = nil end
     end
 
     if self:IsCasting() then return end
@@ -155,7 +147,6 @@ function OBH:Run(useMulti)
     local weaponSpeed = UnitRangedDamage("player") or 3
     local timeLeft = self.next and (self.next - now) or 0
     
-    -- 3. ROTATION (V4.8 Precision Logic)
     if GetActionCooldown(self.asSlot) == 0 then
         if timeLeft > (weaponSpeed * 0.9) or timeLeft < 0.1 then 
             CastSpellByName(self.name[1])
@@ -168,11 +159,9 @@ function OBH:Run(useMulti)
         return
     end
 
-    if useMulti then
-        if GetActionCooldown(self.msSlot) == 0 and timeLeft > 0.5 then
-            CastSpellByName(self.name[5])
-            return
-        end
+    if useMulti and GetActionCooldown(self.msSlot) == 0 and timeLeft > 0.5 then
+        CastSpellByName(self.name[5])
+        return
     end
 
     if GetActionCooldown(self.arcSlot) == 0 and timeLeft > 0.2 then
@@ -185,4 +174,4 @@ function OBH:Run(useMulti)
     end
 end
 
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V5.1 (Balanced + Mark) Loaded.|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V5.3 (Aggro Specialist) Loaded.|r")
