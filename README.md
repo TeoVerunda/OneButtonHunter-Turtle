@@ -25,6 +25,8 @@ Updated for Nightmares of Ursol and current Hunter changes.
 
 * Turtle WoW
 * SuperWoW
+* Nampower
+* UnitXP
 * CleveRoid Macros
 
 ## Installation
@@ -89,5 +91,5 @@ Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OB
 On login or reload:
 
 ```
-OBH V5.3 (Aggro Specialist) Loaded.
+OBH V6.2 (No Hesitation) Loaded.
 ```
