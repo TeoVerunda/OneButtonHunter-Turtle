@@ -15,7 +15,7 @@ Updated for Nightmares of Ursol and current Hunter changes.
 * Weaves Arcane Shot and Multi-Shot based on timing windows
 * Prevents Auto Shot clipping
 * Supports Rapid Fire through macro
-* Automatic Feign Death when aggro is confirmed (requires SuperWoW)
+* Automatic Concussive Shot + Feign Death when aggro is confirmed (requires SuperWoW)
 * Two modes:
 
   * Normal Mode (with Multi-Shot)
@@ -44,6 +44,7 @@ Make sure the following abilities exist on your action bar:
 * Arcane Shot
 * Multi-Shot
 * Feign Death
+* Concussive Shot
 
 The addon scans your action bar to find these abilities.
 
@@ -86,5 +87,5 @@ Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OB
 On login or reload:
 
 ```
-OBH V5.1 (Balanced + Mark) Loaded.
+OBH V5.3 (Aggro Specialist) Loaded.
 ```
