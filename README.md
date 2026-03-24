@@ -60,10 +60,10 @@ Create a macro and use one of the following:
 /run OBH:Run(true)
 ```
 
-Optional:
+Optional (Pet Attack):
 
 ```
-/petattack
+Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OBH:Run(true) end
 ```
 
 ### Single Target Mode
@@ -72,7 +72,7 @@ Optional:
 #showtooltip Aimed Shot
 /cast Rapid Fire
 /run local c,f=CastSpellByName,function(k)for i=1,16 do local t=UnitDebuff("player",i)if t and strfind(strlower(t),k)then return 1 end end end if f("black")then c("Arcane Shot")elseif f("poison")then c("Serpent Sting")end
-/run OBH:Run(false)
+/run OBH:Run(false) or [/run if UnitExists("target") then PetAttack() OBH:Run(false) end] for pet attack
 ```
 
 ## Notes
