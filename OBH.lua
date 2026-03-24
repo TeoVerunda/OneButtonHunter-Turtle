@@ -1,11 +1,14 @@
 local GT = GetTime
 OBH = {}
 
--- CONFIGURATION
+-- CONFIGURATION (V4.8 BALANCED)
 OBH.AutoFeign = true
+OBH.AutoMark = true       
 OBH.AggroDelay = 0.2 
 OBH.AlertCooldown = 3.0 
-OBH.InputLagSafety = 0.15 
+OBH.InputLagSafety = 0.12 -- V4.8 Balanced
+OBH.SteadyCast = 1.35     -- V4.8 Balanced
+OBH.SafetyBuffer = 0.10   -- V4.8 Balanced
 
 OBH.t = CreateFrame("GameTooltip", "OBH_Scanner", UIParent, "GameTooltipTemplate")
 OBH.f = CreateFrame("Frame", "OBH_Events", UIParent)
@@ -20,7 +23,7 @@ OBH.aggroTime = nil
 OBH.lastAlert = 0   
 OBH.lastRun = 0 
 
--- Event handler
+-- Event handler: Syncs the hidden Ranged Swing Timer
 OBH.f:SetScript("OnEvent", function()
     if event == "START_AUTOREPEAT_SPELL" then
         OBH.auto = true
@@ -54,7 +57,7 @@ OBH.name = {
     [7] = "Hunter's Mark",
 }
 
-OBH.asSlot, OBH.arcSlot, OBH.ssSlot, OBH.msSlot, OBH.fdSlot, OBH.hmSlot = nil, nil, nil, nil, nil, nil
+OBH.asSlot, OBH.arcSlot, OBH.ssSlot, OBH.msSlot, OBH.fdSlot = nil, nil, nil, nil, nil
 
 local function SafeGetText(lineNum)
     local textObj = _G["OBH_ScannerTextLeft"..lineNum]
@@ -78,21 +81,6 @@ function OBH:GetActionSlot(spellName)
     return nil
 end
 
--- 1.12.1 Tooltip Debuff Scanner
-function OBH:HasHuntersMark()
-    for i = 1, 16 do
-        OBH_Scanner:SetOwner(UIParent, "ANCHOR_NONE")
-        OBH_Scanner:SetUnitDebuff("target", i)
-        local text = SafeGetText(1)
-        if text and string.find(text, "Hunter's Mark") then
-            OBH_Scanner:Hide()
-            return true
-        end
-    end
-    OBH_Scanner:Hide()
-    return false
-end
-
 function OBH:IsCasting()
     if CastingBarFrame and CastingBarFrame:IsShown() then return true end
     OBH_Scanner:SetOwner(UIParent, "ANCHOR_NONE")
@@ -103,7 +91,21 @@ function OBH:IsCasting()
     return string.find(text, "Casting") or string.find(text, "Aimed") or string.find(text, "Steady") or string.find(text, "Multi")
 end
 
--- MAIN ENGINE: Version 5.0 (Hunter's Mark Priority)
+-- Debuff Checker: Scans for the Hunter's Mark Texture
+function OBH:HasMark()
+    local i = 1
+    while true do
+        local texture = UnitDebuff("target", i)
+        if not texture then break end
+        if string.find(texture, "Ability_Hunter_SniperShot") then
+            return true
+        end
+        i = i + 1
+    end
+    return false
+end
+
+-- MAIN ENGINE: Version 5.1 (Balanced Rotation + Mark)
 function OBH:Run(useMulti)
     local now = GT()
     
@@ -118,9 +120,14 @@ function OBH:Run(useMulti)
     self.ssSlot  = self.ssSlot  or self:GetActionSlot(self.name[3]) or 15
     self.msSlot  = self.msSlot  or self:GetActionSlot(self.name[5]) or 16
     self.fdSlot  = self.fdSlot  or self:GetActionSlot(self.name[6]) or 18
-    self.hmSlot  = self.hmSlot  or self:GetActionSlot(self.name[7]) or 19
 
-    -- AGGRO LOGIC (Feign Death)
+    -- 1. HUNTER'S MARK (Isolated to avoid logic overlap)
+    if self.AutoMark and not self:HasMark() then
+        CastSpellByName(self.name[7])
+        return -- Exit to allow GCD to settle before starting rotation
+    end
+
+    -- 2. AGGRO LOGIC
     local inGroup = (GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0)
     if inGroup and self.AutoFeign then
         if UnitIsUnit("targettarget", "player") then
@@ -143,21 +150,12 @@ function OBH:Run(useMulti)
         end
     end
 
-    -- PRIORITY 0: Hunter's Mark (Checks if target has it, casts if not)
-    if not self:HasHuntersMark() then
-        CastSpellByName(self.name[7])
-        return
-    end
-
     if self:IsCasting() then return end
 
     local weaponSpeed = UnitRangedDamage("player") or 3
     local timeLeft = self.next and (self.next - now) or 0
-    local hasteFactor = (self.baseSpeed) and (weaponSpeed / self.baseSpeed) or 1
     
-    local steadyWindow = 1.7 * hasteFactor 
-
-    -- PRIORITY 1: Hybrid Aimed Shot
+    -- 3. ROTATION (V4.8 Precision Logic)
     if GetActionCooldown(self.asSlot) == 0 then
         if timeLeft > (weaponSpeed * 0.9) or timeLeft < 0.1 then 
             CastSpellByName(self.name[1])
@@ -165,29 +163,26 @@ function OBH:Run(useMulti)
         end
     end
 
-    -- PRIORITY 2: Steady Shot
-    if timeLeft > steadyWindow then
+    if timeLeft > (self.SteadyCast + self.SafetyBuffer) then
         CastSpellByName(self.name[3])
         return
     end
 
-    -- PRIORITY 3: The Brothers
     if useMulti then
-        if GetActionCooldown(self.msSlot) == 0 and timeLeft > (0.6 * hasteFactor) then
+        if GetActionCooldown(self.msSlot) == 0 and timeLeft > 0.5 then
             CastSpellByName(self.name[5])
             return
         end
     end
 
-    if GetActionCooldown(self.arcSlot) == 0 and timeLeft > (0.3 * hasteFactor) then
+    if GetActionCooldown(self.arcSlot) == 0 and timeLeft > 0.2 then
         CastSpellByName(self.name[4])
         return
     end
 
-    -- PRIORITY 4: Auto Shot
     if not self.auto and IsActionInRange(self.asSlot) == 1 then
         CastSpellByName(self.name[2])
     end
 end
 
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V5.0 (Hunter's Mark Priority) Loaded.|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V5.1 (Balanced + Mark) Loaded.|r")
