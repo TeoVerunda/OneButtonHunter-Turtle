@@ -25,6 +25,7 @@ Updated for Nightmares of Ursol and current Hunter changes.
 
 * Turtle WoW
 * SuperWoW
+* CleveRoid Macros
 
 ## Installation
 
