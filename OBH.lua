@@ -5,7 +5,7 @@ OBH = {}
 OBH.AutoFeign = true
 OBH.AggroDelay = 0.2 
 OBH.AlertCooldown = 3.0 
-OBH.InputLagSafety = 0.15 -- Increased to 0.15 to prevent Scroll Wheel "command flooding"
+OBH.InputLagSafety = 0.15 
 
 OBH.t = CreateFrame("GameTooltip", "OBH_Scanner", UIParent, "GameTooltipTemplate")
 OBH.f = CreateFrame("Frame", "OBH_Events", UIParent)
@@ -51,9 +51,10 @@ OBH.name = {
     [4] = "Arcane Shot",
     [5] = "Multi-Shot",
     [6] = "Feign Death",
+    [7] = "Hunter's Mark",
 }
 
-OBH.asSlot, OBH.arcSlot, OBH.ssSlot, OBH.msSlot, OBH.fdSlot = nil, nil, nil, nil, nil
+OBH.asSlot, OBH.arcSlot, OBH.ssSlot, OBH.msSlot, OBH.fdSlot, OBH.hmSlot = nil, nil, nil, nil, nil, nil
 
 local function SafeGetText(lineNum)
     local textObj = _G["OBH_ScannerTextLeft"..lineNum]
@@ -77,6 +78,21 @@ function OBH:GetActionSlot(spellName)
     return nil
 end
 
+-- 1.12.1 Tooltip Debuff Scanner
+function OBH:HasHuntersMark()
+    for i = 1, 16 do
+        OBH_Scanner:SetOwner(UIParent, "ANCHOR_NONE")
+        OBH_Scanner:SetUnitDebuff("target", i)
+        local text = SafeGetText(1)
+        if text and string.find(text, "Hunter's Mark") then
+            OBH_Scanner:Hide()
+            return true
+        end
+    end
+    OBH_Scanner:Hide()
+    return false
+end
+
 function OBH:IsCasting()
     if CastingBarFrame and CastingBarFrame:IsShown() then return true end
     OBH_Scanner:SetOwner(UIParent, "ANCHOR_NONE")
@@ -87,11 +103,10 @@ function OBH:IsCasting()
     return string.find(text, "Casting") or string.find(text, "Aimed") or string.find(text, "Steady") or string.find(text, "Multi")
 end
 
--- MAIN ENGINE: Version 4.7 (Scroll Wheel High-Stability)
+-- MAIN ENGINE: Version 5.0 (Hunter's Mark Priority)
 function OBH:Run(useMulti)
     local now = GT()
     
-    -- Throttling: If we run too often, the 1.12.1 client drops spell requests.
     if (now - self.lastRun) < self.InputLagSafety then return end
     self.lastRun = now 
 
@@ -103,8 +118,9 @@ function OBH:Run(useMulti)
     self.ssSlot  = self.ssSlot  or self:GetActionSlot(self.name[3]) or 15
     self.msSlot  = self.msSlot  or self:GetActionSlot(self.name[5]) or 16
     self.fdSlot  = self.fdSlot  or self:GetActionSlot(self.name[6]) or 18
+    self.hmSlot  = self.hmSlot  or self:GetActionSlot(self.name[7]) or 19
 
-    -- AGGRO LOGIC
+    -- AGGRO LOGIC (Feign Death)
     local inGroup = (GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0)
     if inGroup and self.AutoFeign then
         if UnitIsUnit("targettarget", "player") then
@@ -125,6 +141,12 @@ function OBH:Run(useMulti)
         else
             self.aggroTime = nil
         end
+    end
+
+    -- PRIORITY 0: Hunter's Mark (Checks if target has it, casts if not)
+    if not self:HasHuntersMark() then
+        CastSpellByName(self.name[7])
+        return
     end
 
     if self:IsCasting() then return end
@@ -168,4 +190,4 @@ function OBH:Run(useMulti)
     end
 end
 
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V4.7 (Scroll Wheel High-Stability) Loaded.|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V5.0 (Hunter's Mark Priority) Loaded.|r")
