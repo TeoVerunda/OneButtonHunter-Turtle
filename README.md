@@ -44,6 +44,7 @@ Updated for Nightmares of Ursol and current Hunter changes.
 
 Make sure the following abilities exist on your action bar:
 
+(Marksman)
 * Aimed Shot
 * Auto Shot
 * Steady Shot
@@ -52,6 +53,16 @@ Make sure the following abilities exist on your action bar:
 * Serpent Sting
 * Feign Death
 * Concussive Shot
+
+(Survival)
+* Explosive Trap
+* Immolation Trap
+* Cleave
+* Lacerate
+* Raptor Shot
+* Mongoose Bite
+* Wing Clip
+* Attack
 
 The addon scans your action bar to find these abilities.
 
