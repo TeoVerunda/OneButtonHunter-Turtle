@@ -199,4 +199,4 @@ function OBH:Run(useMulti)
     end
 end
 
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V6.5 (Tactical Build) Loaded.|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V6.6 (Github Release Build) Loaded.|r")
