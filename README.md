@@ -1,41 +1,44 @@
-# One Button Hunter
+# One Button Hunter (OBH)
 
 Designed for the new Marksman Hunter changes in Nightmares of Ursol (1.18.1)
-One Button Hunter (OBH) is a Turtle WoW Hunter addon that allows you to run your rotation through a single button while maintaining proper shot timing and avoiding Auto Shot clipping.
+One Button Hunter is a lightweight Hunter addon that lets you run both ranged and melee (Survival) rotations using simple macros while maintaining accurate shot timing and smart utility.
 
 Updated for Nightmares of Ursol and current Hunter changes.
 
 ## Features
 
-* One-button Hunter rotation helper
-* Applies Hunter's Mark if there isn't one on the target.
-* Prioritises Aimed Shot when off cooldown
-* Automatically detects special Aimed Shot ammo and uses the correct follow-up ability (Multi-Shot, Arcane Shot, or Serpent Sting)
-* Uses Steady Shot as filler
-* Weaves Arcane Shot and Multi-Shot based on timing windows
-* Prevents Auto Shot clipping
-* Supports Rapid Fire through macro
-* Automatic Concussive Shot + Feign Death when aggro is confirmed (requires SuperWoW)
-* Two modes:
+### Ranged Mode (Marksman-style)
+- Prioritizes Aimed Shot when off cooldown
+- Dynamic Steady Shot timing with haste compensation
+- Smart Arcane Shot / Multi-Shot weaving
+- Prevents Auto Shot clipping
+- Automatic Hunter's Mark
+- Concussive Shot + Feign Death on aggro (group)
 
-  * Normal Mode (with Multi-Shot)
-  * Single Target Mode (no Multi-Shot)
+### Melee Mode (Survival / Stalker)
+- Full melee rotation with Lacerate priority
+- Carve + Explosive Trap in AoE
+- Immolation Trap in Single Target
+- Raptor Strike / Mongoose Bite core loop
+- Wing Clip as strict filler
+- Strict melee-only targeting safety
+
+### Smart Aspect System
+- Automatic Aspect of the Hawk (Ranged)
+- Automatic Aspect of the Wolf (Melee)
+- Viper Aspect with hysteresis: Activates at ≤5% mana and stays active until 30% mana
+
+- Safe and non-intrusive design (no risky full automation)
 
 ## Requirements
-
-* Turtle WoW
-* SuperWoW
-* Nampower
-* UnitXP
-* CleveRoid Macros
+- Turtle WoW (Nightmares of Ursol patch)
+- SuperWoW
+- CleveRoid Macros (highly recommended)
+- Nampower / UnitXP (optional but useful)
 
 ## Installation
-
-Place the addon folder in:
-
-TurtleWoW/Interface/Addons
-
-Alternatively, install using the launcher via `.git` link if supported.
+1. Download or clone the addon into `TurtleWoW/Interface/AddOns/OneButtonHunter`
+2. Restart WoW or type `/reload`
 
 ## Setup
 
@@ -56,11 +59,12 @@ The addon scans your action bar to find these abilities.
 
 Create a macro and use one of the following:
 
-### Normal Mode
+### Ranged – Normal / AoE Mode
 
 ```
 #showtooltip Aimed Shot
-/cast Rapid Fire
+/cast !Trueshot Aura
+/cast [combat] Rapid Fire
 /run local c,f=CastSpellByName,function(k)for i=1,16 do local t=UnitDebuff("player",i)if t and strfind(strlower(t),k)then return 1 end end end if f("searing")then c("Multi-Shot")elseif f("black")then c("Arcane Shot")elseif f("poison")then c("Serpent Sting")end
 /run OBH:Run(true)
 ```
@@ -71,25 +75,57 @@ Optional (Pet Attack):
 Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OBH:Run(true) end
 ```
 
-### Single Target Mode
-
+### Ranged – Single Target Mode
 ```
 #showtooltip Aimed Shot
-/cast Rapid Fire
+/cast !Trueshot Aura
+/cast [combat] Rapid Fire
 /run local c,f=CastSpellByName,function(k)for i=1,16 do local t=UnitDebuff("player",i)if t and strfind(strlower(t),k)then return 1 end end end if f("black")then c("Arcane Shot")elseif f("poison")then c("Serpent Sting")end
 /run OBH:Run(false) or [/run if UnitExists("target") then PetAttack() OBH:Run(false) end] for pet attack
 ```
 
+### Melee – AoE
+
+```
+/cast !Trueshot Aura
+/cast [combat] Rapid Fire
+/startattack
+/run OBHM:Run(true)
+/run if UnitExists("target") then PetAttack() end
+```
+
+### Melee – Single Target
+
+```
+/cast !Trueshot Aura
+/cast [combat] Rapid Fire
+/startattack
+/run OBHM:Run(false)
+/run if UnitExists("target") then PetAttack() end
+```
+
+## Aspect Behavior
+
+- **Hawk** → Used automatically in ranged mode (when mana > 10%)
+- **Wolf** → Used automatically in melee mode (when mana > 10%)
+- **Viper** → Automatically activates when mana ≤ 10% and stays on until mana reaches 40%
+
+You can still manually cast aspects if needed — the addon will respect them.
+
 ## Notes
 
-* Designed specifically for Turtle WoW
-* Requires SuperWoW for automatic Feign Death functionality
-* Depends on action bar scanning to locate abilities
+- The ranged engine (`OBH:Run`) is intentionally left untouched from the stable V6.6 version.
+- The melee engine (`OBHM:Run`) follows strict ability-based targeting to avoid pet pulls.
+- All aspects use simple "if missing → cast" logic to prevent flickering.
+- Designed for high spam tolerance (you can mash the button safely).
+- Designed specifically for Turtle WoW
+- Requires SuperWoW for automatic Feign Death functionality
+- Depends on action bar scanning to locate abilities
 
 ## Load Message
 
 On login or reload:
 
 ```
-OBH V6.6 (Github Release Build) Loaded.
+OBH V7.0 (Aspects Update) Loaded.
 ```
