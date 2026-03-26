@@ -91,5 +91,5 @@ Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OB
 On login or reload:
 
 ```
-OBH V6.5 (Tactical Build) Loaded.
+OBH V6.6 (Github Release Build) Loaded.
 ```
