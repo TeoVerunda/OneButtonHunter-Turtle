@@ -100,9 +100,8 @@ Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OB
 ```
 /cast !Trueshot Aura
 /cast [combat] Rapid Fire
-/startattack
 /run OBHM:Run(true)
-/run if UnitExists("target") then PetAttack() end
+/run if UnitExists("target") then PetAttack() if (MyAttacking ~= UnitName("target")) then AttackTarget() MyAttacking = UnitName("target") end end
 ```
 
 ### Melee – Single Target
@@ -110,9 +109,8 @@ Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OB
 ```
 /cast !Trueshot Aura
 /cast [combat] Rapid Fire
-/startattack
 /run OBHM:Run(false)
-/run if UnitExists("target") then PetAttack() end
+/run if UnitExists("target") then PetAttack() if (MyAttacking ~= UnitName("target")) then AttackTarget() MyAttacking = UnitName("target") end end
 ```
 
 ## Aspect Behavior
