@@ -24,18 +24,19 @@ OBHM.DeterrenceHP = 50
 -- ASPECT SETTINGS
 OBH.HawkTexture  = "Interface\\Icons\\Spell_Nature_RavenForm"
 OBH.WolfTexture  = "Interface\\Icons\\Ability_Mount_WhiteDireWolf"
-OBH.ViperTexture = "Interface\\Icons\\ability_hunter_aspectoftheviper"
+OBH.ViperTexture = "Interface\\Icons\\Ability_hunter_aspectoftheviper"
 
-OBH.ViperLow  = 10    -- Activate Viper
-OBH.ViperHigh = 40   -- Allow normal aspect again
+OBH.ViperLow  = 5
+OBH.ViperHigh = 30
+OBH.AspectEnabled = true   -- Set false to disable auto aspects by default
 
--- FALLBACK SLOTS
+-- IMPROVED FALLBACK SLOTS (less likely to conflict)
 local FORCED_SLOTS = {
-    as = 13, arc = 14, ss = 15, ms = 16,
-    fd = 18, conc = 19,
-    rapt = 20, mong = 21, wing = 22,
-    lace = 25, carve = 26,
-    exp = 27, immol = 28
+    as = 61, arc = 62, ss = 63, ms = 64,
+    fd = 65, conc = 66,
+    rapt = 67, mong = 68, wing = 69,
+    lace = 70, carve = 71,
+    exp = 72, immol = 73
 }
 
 -- SPELL NAMES
@@ -63,6 +64,7 @@ OBH.f:RegisterEvent("STOP_AUTOREPEAT_SPELL")
 OBH.auto, OBH.next, OBH.enabled = false, nil, true
 OBH.baseSpeed, OBH.aggroTime, OBH.lastAlert, OBH.lastRun = nil, nil, 0, 0
 OBH.lastMarkTime, OBH.lastMarkGUID = 0, nil
+OBH.warned = false
 
 OBH.f:SetScript("OnEvent", function()
     if event == "START_AUTOREPEAT_SPELL" then
@@ -137,7 +139,27 @@ function OBH:HasBuff(texPath)
 end
 
 -- ==========================================
--- 3. RANGED ENGINE
+-- SLASH COMMAND
+-- ==========================================
+SLASH_OBH1 = "/obh"
+SlashCmdList["OBH"] = function(msg)
+    msg = strlower(msg or "")
+    if msg == "aspect off" or msg == "off" then
+        OBH.AspectEnabled = false
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00[OBH] Aspect Manager → Disabled|r")
+    elseif msg == "aspect on" or msg == "on" then
+        OBH.AspectEnabled = true
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00[OBH] Aspect Manager → Enabled|r")
+    elseif msg == "aspect" or msg == "status" then
+        local status = OBH.AspectEnabled and "|cff00ff00ENABLED" or "|cffff0000DISABLED"
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00[OBH] Aspect Manager is " .. status .. "|r")
+    else
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00[OBH] Usage: /obh aspect on | off | status|r")
+    end
+end
+
+-- ==========================================
+-- 3. RANGED ENGINE (with improved warnings)
 -- ==========================================
 function OBH:Run(useMulti)
     local now = GT()
@@ -146,22 +168,7 @@ function OBH:Run(useMulti)
 
     if not self.enabled or not UnitExists("target") or UnitIsDead("target") or not UnitCanAttack("player", "target") then return end
 
-    local manaP = (UnitMana("player") / UnitManaMax("player")) * 100
-
-    -- VIPER has priority - once active, block Hawk until 30%
-    if manaP <= OBH.ViperLow then
-        if not self:HasBuff(OBH.ViperTexture) then
-            CastSpellByName("Aspect of the Viper")
-        end
-    elseif manaP >= OBH.ViperHigh then
-        -- Only allow Hawk when mana recovered
-        if not self:HasBuff(OBH.HawkTexture) then
-            CastSpellByName("Aspect of the Hawk")
-        end
-    end
-    -- If Viper is active and mana is between 5% and 30%, do nothing (keep Viper)
-
-    -- Rest of ranged rotation
+    -- Slot Detection + Warning
     self.asSlot   = self.asSlot   or self:GetActionSlot(self.name[1], FORCED_SLOTS.as)
     self.arcSlot  = self.arcSlot  or self:GetActionSlot(self.name[4], FORCED_SLOTS.arc)
     self.ssSlot   = self.ssSlot   or self:GetActionSlot(self.name[3], FORCED_SLOTS.ss)
@@ -169,6 +176,29 @@ function OBH:Run(useMulti)
     self.fdSlot   = self.fdSlot   or self:GetActionSlot(self.name[6], FORCED_SLOTS.fd)
     self.concSlot = self.concSlot or self:GetActionSlot(self.name[8], FORCED_SLOTS.conc)
 
+    if self.asSlot == FORCED_SLOTS.as and not GetActionInfo(self.asSlot) then
+        if not OBH.warned then
+            DEFAULT_CHAT_FRAME:AddMessage("|cffff0000[OBH] WARNING: Aimed Shot not found on action bars!|r")
+            DEFAULT_CHAT_FRAME:AddMessage("|cffff0000Please place Aimed Shot somewhere visible.|r")
+            OBH.warned = true
+        end
+    end
+
+    -- Aspect Management with Toggle
+    if OBH.AspectEnabled then
+        local manaP = (UnitMana("player") / UnitManaMax("player")) * 100
+        if manaP <= OBH.ViperLow then
+            if not self:HasBuff(OBH.ViperTexture) then
+                CastSpellByName("Aspect of the Viper")
+            end
+        elseif manaP >= OBH.ViperHigh then
+            if not self:HasBuff(OBH.HawkTexture) then
+                CastSpellByName("Aspect of the Hawk")
+            end
+        end
+    end
+
+    -- Ranged Rotation
     local targetID = (UnitGUID and UnitGUID("target")) or UnitName("target")
     local targetHP = (UnitHealth("target") / UnitHealthMax("target")) * 100
 
@@ -257,16 +287,17 @@ function OBHM:Run(isAoE)
 
     if not UnitExists("target") or not UnitCanAttack("player", "target") then return end
 
-    local manaP = (UnitMana("player") / UnitManaMax("player")) * 100
-
-    -- VIPER has priority for melee too
-    if manaP <= OBH.ViperLow then
-        if not OBH:HasBuff(OBH.ViperTexture) then
-            CastSpellByName("Aspect of the Viper")
-        end
-    elseif manaP >= OBH.ViperHigh then
-        if not OBH:HasBuff(OBH.WolfTexture) then
-            CastSpellByName("Aspect of the Wolf")
+    -- Aspect Logic with Toggle
+    if OBH.AspectEnabled then
+        local manaP = (UnitMana("player") / UnitManaMax("player")) * 100
+        if manaP <= OBH.ViperLow then
+            if not OBH:HasBuff(OBH.ViperTexture) then
+                CastSpellByName("Aspect of the Viper")
+            end
+        elseif manaP >= OBH.ViperHigh then
+            if not OBH:HasBuff(OBH.WolfTexture) then
+                CastSpellByName("Aspect of the Wolf")
+            end
         end
     end
 
@@ -282,7 +313,7 @@ function OBHM:Run(isAoE)
         return
     end
 
-    -- MELEE ROTATION
+    -- Melee Rotation
     local laceSlot = OBH:GetActionSlot(OBH.name[15], FORCED_SLOTS.lace)
     local raptSlot = OBH:GetActionSlot(OBH.name[9], FORCED_SLOTS.rapt)
 
@@ -312,5 +343,9 @@ function OBHM:Run(isAoE)
     end
 end
 
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V7.0 (Aspects Update) Loaded.|r")
-DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Ranged: /run OBH:Run(false/true)   |   Melee: /run OBHM:Run(false/true)|r")
+-- ==========================================
+-- LOAD MESSAGE
+-- ==========================================
+local aspectStatus = OBH.AspectEnabled and "|cff00ff00ENABLED" or "|cffff0000DISABLED"
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V7.0 Loaded.|r Aspect Manager: " .. aspectStatus)
+DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00/obh aspect on | off | status  -  Toggle auto aspects|r")
