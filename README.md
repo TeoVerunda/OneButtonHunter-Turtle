@@ -1,9 +1,8 @@
 # One Button Hunter (OBH)
 
-Designed for the new Marksman Hunter changes in Nightmares of Ursol (1.18.1)
-One Button Hunter is a lightweight Hunter addon that lets you run both ranged and melee (Survival) rotations using simple macros while maintaining accurate shot timing and smart utility.
+Designed for Turtle WoW – Nightmares of Ursol (1.18.1+)
 
-Updated for Nightmares of Ursol and current Hunter changes.
+One Button Hunter is a lightweight Hunter addon that lets you run both ranged and melee (Survival) rotations using simple macros while maintaining accurate shot timing and smart utility.
 
 ## Features
 
@@ -13,7 +12,7 @@ Updated for Nightmares of Ursol and current Hunter changes.
 - Smart Arcane Shot / Multi-Shot weaving
 - Prevents Auto Shot clipping
 - Automatic Hunter's Mark
-- Concussive Shot + Feign Death on aggro (group)
+- Concussive Shot + Feign Death on aggro (in group)
 
 ### Melee Mode (Survival / Stalker)
 - Full melee rotation with Lacerate priority
@@ -27,8 +26,7 @@ Updated for Nightmares of Ursol and current Hunter changes.
 - Automatic Aspect of the Hawk (Ranged)
 - Automatic Aspect of the Wolf (Melee)
 - Viper Aspect with hysteresis: Activates at ≤5% mana and stays active until 30% mana
-
-- Safe and non-intrusive design (no risky full automation)
+- Toggleable with `/obh aspect on | off`
 
 ## Requirements
 - Turtle WoW (Nightmares of Ursol patch)
@@ -41,34 +39,29 @@ Updated for Nightmares of Ursol and current Hunter changes.
 2. Restart WoW or type `/reload`
 
 ## Setup
-
 Make sure the following abilities exist on your action bar:
 
-(Marksman)
-* Aimed Shot
-* Auto Shot
-* Steady Shot
-* Arcane Shot
-* Multi-Shot
-* Serpent Sting
-* Feign Death
-* Concussive Shot
+**(Marksman)**
+- Aimed Shot
+- Auto Shot
+- Steady Shot
+- Arcane Shot
+- Multi-Shot
+- Feign Death
+- Concussive Shot
 
-(Survival)
-* Explosive Trap
-* Immolation Trap
-* Cleave
-* Lacerate
-* Raptor Shot
-* Mongoose Bite
-* Wing Clip
-* Attack
+**(Survival)**
+- Lacerate
+- Carve
+- Explosive Trap
+- Immolation Trap
+- Raptor Strike
+- Mongoose Bite
+- Wing Clip
 
-The addon scans your action bar to find these abilities.
+The addon scans your action bar to locate these abilities.
 
 ## Macro Usage
-
-Create a macro and use one of the following:
 
 ### Ranged – Normal / AoE Mode
 
@@ -113,28 +106,28 @@ Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OB
 /run if UnitExists("target") then PetAttack() if (MyAttacking ~= UnitName("target")) then AttackTarget() MyAttacking = UnitName("target") end end
 ```
 
+
 ## Aspect Behavior
+- **Hawk** → Used automatically in ranged mode (when mana > 5%)
+- **Wolf** → Used automatically in melee mode (when mana > 5%)
+- **Viper** → Automatically activates when mana ≤ 5% and stays on until mana reaches 30%
 
-- **Hawk** → Used automatically in ranged mode (when mana > 10%)
-- **Wolf** → Used automatically in melee mode (when mana > 10%)
-- **Viper** → Automatically activates when mana ≤ 10% and stays on until mana reaches 40%
-
-You can still manually cast aspects if needed — the addon will respect them.
+You can toggle the Aspect Manager with:
+- `/obh aspect on`
+- `/obh aspect off`
+- `/obh aspect` (shows status)
 
 ## Notes
-
-- The ranged engine (`OBH:Run`) is intentionally left untouched from the stable V6.6 version.
-- The melee engine (`OBHM:Run`) follows strict ability-based targeting to avoid pet pulls.
+- The ranged engine (`OBH:Run`) is intentionally kept stable from the proven V6.6 version.
+- Melee targeting is strict to avoid accidental pet pulls.
 - All aspects use simple "if missing → cast" logic to prevent flickering.
 - Designed for high spam tolerance (you can mash the button safely).
-- Designed specifically for Turtle WoW
-- Requires SuperWoW for automatic Feign Death functionality
-- Depends on action bar scanning to locate abilities
+- Requires SuperWoW for best Feign Death functionality.
 
 ## Load Message
-
 On login or reload:
 
 ```
-OBH V7.0 (Aspects Update) Loaded.
+OBH V7.0 Loaded. Aspect Manager: ENABLED
+Use /obh aspect on | off | status
 ```
