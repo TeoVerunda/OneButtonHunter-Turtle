@@ -24,13 +24,13 @@ OBHM.DeterrenceHP = 50
 -- ASPECT SETTINGS
 OBH.HawkTexture  = "Interface\\Icons\\Spell_Nature_RavenForm"
 OBH.WolfTexture  = "Interface\\Icons\\Ability_Mount_WhiteDireWolf"
-OBH.ViperTexture = "Interface\\Icons\\Ability_hunter_aspectoftheviper"
+OBH.ViperTexture = "Interface\\Icons\\ability_hunter_aspectoftheviper"
 
-OBH.ViperLow  = 5
-OBH.ViperHigh = 30
-OBH.AspectEnabled = true   -- Set false to disable auto aspects by default
+OBH.ViperLow  = 10
+OBH.ViperHigh = 40
+OBH.AspectEnabled = true
 
--- IMPROVED FALLBACK SLOTS (less likely to conflict)
+-- FALLBACK SLOTS
 local FORCED_SLOTS = {
     as = 61, arc = 62, ss = 63, ms = 64,
     fd = 65, conc = 66,
@@ -133,7 +133,9 @@ function OBH:HasBuff(texPath)
     for i = 1, 32 do
         local tex = UnitBuff("player", i)
         if not tex then break end
-        if string.find(tex, texPath) then return true end
+        if string.find(tex, texPath, 1, true) then
+            return true
+        end
     end
     return false
 end
@@ -159,7 +161,104 @@ SlashCmdList["OBH"] = function(msg)
 end
 
 -- ==========================================
--- 3. RANGED ENGINE (with improved warnings)
+-- 3. ADVANCED RANGED ENGINE - V8.5 (Tighter Aimed + Arcane priority)
+-- ==========================================
+function OBH:RunAdvanced(useMulti)
+    local now = GT()
+    if (now - self.lastRun) < self.InputLagSafety then return end
+    self.lastRun = now
+
+    if not self.enabled or not UnitExists("target") or UnitIsDead("target") or not UnitCanAttack("player", "target") then return end
+
+    -- Safe Auto Shot activation
+    if not self.auto then
+        if IsActionInRange(self.asSlot or 1) == 1 then
+            CastSpellByName("Auto Shot")
+        end
+    end
+
+    -- Aspect Logic
+    if OBH.AspectEnabled then
+        local manaP = (UnitMana("player") / UnitManaMax("player")) * 100
+        if manaP <= OBH.ViperLow then
+            if not self:HasBuff(OBH.ViperTexture) then
+                CastSpellByName("Aspect of the Viper")
+            end
+        elseif manaP >= OBH.ViperHigh then
+            if not self:HasBuff(OBH.HawkTexture) then
+                CastSpellByName("Aspect of the Hawk")
+            end
+        end
+    end
+
+-- Aggro Management
+local inGroup = (GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0)
+if inGroup and self.AutoFeign and UnitIsUnit("targettarget", "player") then
+    self.concSlot = self.concSlot or self:GetActionSlot(self.name[8], FORCED_SLOTS.conc)
+    self.fdSlot   = self.fdSlot   or self:GetActionSlot(self.name[6], FORCED_SLOTS.fd)
+    
+    local _, cDur = GetActionCooldown(self.concSlot)
+    if cDur == 0 then CastSpellByName(self.name[8]) end
+    
+    if not self.aggroTime then 
+        self.aggroTime = now
+    elseif (now - self.aggroTime) >= self.AggroDelay then
+        local _, fdDur = GetActionCooldown(self.fdSlot)
+        if fdDur == 0 then
+            CastSpellByName(self.name[6])
+            self.aggroTime = nil
+            return
+        end
+    end
+else 
+    self.aggroTime = nil 
+end
+
+    if self:IsCasting() then return end
+
+    -- Slot Detection
+    self.asSlot   = self.asSlot   or self:GetActionSlot(self.name[1], FORCED_SLOTS.as)
+    self.arcSlot  = self.arcSlot  or self:GetActionSlot(self.name[4], FORCED_SLOTS.arc)
+    self.ssSlot   = self.ssSlot   or self:GetActionSlot(self.name[3], FORCED_SLOTS.ss)
+    self.msSlot   = self.msSlot   or self:GetActionSlot(self.name[5], FORCED_SLOTS.ms)
+
+    local timeToNextAuto = self.next and (self.next - now) or 0
+    if timeToNextAuto < 0 then timeToNextAuto = 0 end
+
+    local _, asCD = GetActionCooldown(self.asSlot)
+    local _, msCD = GetActionCooldown(self.msSlot)
+    local _, arcCD = GetActionCooldown(self.arcSlot)
+
+    -- 1. Aimed Shot - Highest priority (checked first and most aggressively)
+    if asCD <= 0.1 and timeToNextAuto > 1.5 then
+        CastSpellByName(self.name[1])
+        return
+    end
+
+    -- 2. Multi-Shot
+    if useMulti and msCD <= 0.1 and timeToNextAuto > 1.2 then
+        CastSpellByName(self.name[5])
+        return
+    end
+
+    -- 3. Arcane Shot - High priority filler (fires whenever ready)
+    if arcCD <= 0.1 and timeToNextAuto > 0.7 then
+        CastSpellByName(self.name[4])
+        return
+    end
+
+    -- 4. Steady Shot - True last resort filler only
+    local ssWindow = (UnitRangedDamage("player") or 3) * 0.65
+    if timeToNextAuto > ssWindow then
+        CastSpellByName(self.name[3])
+        return
+    end
+
+    -- Nothing fits safely → do nothing, let Auto Shot fire
+end
+
+-- ==========================================
+-- 4. OLD RANGED ENGINE (Full backup)
 -- ==========================================
 function OBH:Run(useMulti)
     local now = GT()
@@ -168,7 +267,6 @@ function OBH:Run(useMulti)
 
     if not self.enabled or not UnitExists("target") or UnitIsDead("target") or not UnitCanAttack("player", "target") then return end
 
-    -- Slot Detection + Warning
     self.asSlot   = self.asSlot   or self:GetActionSlot(self.name[1], FORCED_SLOTS.as)
     self.arcSlot  = self.arcSlot  or self:GetActionSlot(self.name[4], FORCED_SLOTS.arc)
     self.ssSlot   = self.ssSlot   or self:GetActionSlot(self.name[3], FORCED_SLOTS.ss)
@@ -184,7 +282,6 @@ function OBH:Run(useMulti)
         end
     end
 
-    -- Aspect Management with Toggle
     if OBH.AspectEnabled then
         local manaP = (UnitMana("player") / UnitManaMax("player")) * 100
         if manaP <= OBH.ViperLow then
@@ -198,7 +295,6 @@ function OBH:Run(useMulti)
         end
     end
 
-    -- Ranged Rotation
     local targetID = (UnitGUID and UnitGUID("target")) or UnitName("target")
     local targetHP = (UnitHealth("target") / UnitHealthMax("target")) * 100
 
@@ -266,7 +362,7 @@ function OBH:Run(useMulti)
 end
 
 -- ==========================================
--- 4. MELEE ENGINE
+-- 5. MELEE ENGINE
 -- ==========================================
 function OBHM:Run(isAoE)
     local now = GT()
@@ -287,7 +383,6 @@ function OBHM:Run(isAoE)
 
     if not UnitExists("target") or not UnitCanAttack("player", "target") then return end
 
-    -- Aspect Logic with Toggle
     if OBH.AspectEnabled then
         local manaP = (UnitMana("player") / UnitManaMax("player")) * 100
         if manaP <= OBH.ViperLow then
@@ -301,19 +396,16 @@ function OBHM:Run(isAoE)
         end
     end
 
-    -- Defensive
     local hpP = (UnitHealth("player") / UnitHealthMax("player")) * 100
     if hpP < OBHM.DeterrenceHP then
         CastSpellByName(OBH.name[13])
     end
 
-    -- Aggro Feign
     if (GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0) and UnitIsUnit("targettarget", "player") then
         CastSpellByName(OBH.name[6])
         return
     end
 
-    -- Melee Rotation
     local laceSlot = OBH:GetActionSlot(OBH.name[15], FORCED_SLOTS.lace)
     local raptSlot = OBH:GetActionSlot(OBH.name[9], FORCED_SLOTS.rapt)
 
@@ -347,5 +439,5 @@ end
 -- LOAD MESSAGE
 -- ==========================================
 local aspectStatus = OBH.AspectEnabled and "|cff00ff00ENABLED" or "|cffff0000DISABLED"
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V7.0 Loaded.|r Aspect Manager: " .. aspectStatus)
-DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00/obh aspect on | off | status  -  Toggle auto aspects|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V8.5 (Final Priority Tuning) Loaded.|r Aspect Manager: " .. aspectStatus)
+DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00New Engine: /run OBH:RunAdvanced(true)   |   /run OBH:RunAdvanced(false)|r")
