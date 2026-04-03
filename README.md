@@ -76,7 +76,7 @@ The addon scans your action bar to locate these abilities.
 Optional (Pet Attack):
 
 ```
-Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OBH:Run(true) end
+Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OBH:RunAdvanced((true) end
 ```
 
 ### Ranged – Single Target Mode
@@ -85,7 +85,7 @@ Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OB
 /cast !Trueshot Aura
 /cast [combat] Rapid Fire
 /run local c,f=CastSpellByName,function(k)for i=1,16 do local t=UnitDebuff("player",i)if t and strfind(strlower(t),k)then return 1 end end end if f("poison")then c("Serpent Sting")end
-/run OBH:Run(false) or [/run if UnitExists("target") then PetAttack() OBH:Run(false) end] for pet attack
+/run OBH:RunAdvanced((false) or [/run if UnitExists("target") then PetAttack() OBH:RunAdvanced((false) end] for pet attack
 ```
 
 ### Melee – AoE
