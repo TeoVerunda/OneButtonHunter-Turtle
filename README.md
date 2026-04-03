@@ -69,8 +69,8 @@ The addon scans your action bar to locate these abilities.
 #showtooltip Aimed Shot
 /cast !Trueshot Aura
 /cast [combat] Rapid Fire
-/run local c,f=CastSpellByName,function(k)for i=1,16 do local t=UnitDebuff("player",i)if t and strfind(strlower(t),k)then return 1 end end end if f("searing")then c("Multi-Shot")elseif f("black")then c("Arcane Shot")elseif f("poison")then c("Serpent Sting")end
-/run OBH:Run(true)
+/run local c,f=CastSpellByName,function(k)for i=1,16 do local t=UnitDebuff("player",i)if t and strfind(strlower(t),k)then return 1 end end end if f("poison")then c("Serpent Sting")end
+/run if UnitExists("target") then PetAttack() OBH:RunAdvanced(true) end
 ```
 
 Optional (Pet Attack):
@@ -84,7 +84,7 @@ Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OB
 #showtooltip Aimed Shot
 /cast !Trueshot Aura
 /cast [combat] Rapid Fire
-/run local c,f=CastSpellByName,function(k)for i=1,16 do local t=UnitDebuff("player",i)if t and strfind(strlower(t),k)then return 1 end end end if f("black")then c("Arcane Shot")elseif f("poison")then c("Serpent Sting")end
+/run local c,f=CastSpellByName,function(k)for i=1,16 do local t=UnitDebuff("player",i)if t and strfind(strlower(t),k)then return 1 end end end if f("poison")then c("Serpent Sting")end
 /run OBH:Run(false) or [/run if UnitExists("target") then PetAttack() OBH:Run(false) end] for pet attack
 ```
 
@@ -118,7 +118,8 @@ You can toggle the Aspect Manager with:
 - `/obh aspect` (shows status)
 
 ## Notes
-- The ranged engine (`OBH:Run`) is intentionally kept stable from the proven V6.6 version.
+- The new advanced ranged engine (OBH:RunAdvanced) is now the default for better DPS.
+- The old stable engine (OBH:Run) is kept as a backup.
 - Melee targeting is strict to avoid accidental pet pulls.
 - All aspects use simple "if missing → cast" logic to prevent flickering.
 - Designed for high spam tolerance (you can mash the button safely).
@@ -128,6 +129,6 @@ You can toggle the Aspect Manager with:
 On login or reload:
 
 ```
-OBH V7.0 Loaded. Aspect Manager: ENABLED
+OBH V8.5 Loaded. Aspect Manager: ENABLED
 Use /obh aspect on | off | status
 ```
