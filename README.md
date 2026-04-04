@@ -129,6 +129,6 @@ You can toggle the Aspect Manager with:
 On login or reload:
 
 ```
-OBH V8.5 Loaded. Aspect Manager: ENABLED
+OBH V8.6 Loaded. Aspect Manager: ENABLED
 Use /obh aspect on | off | status
 ```
