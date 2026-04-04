@@ -161,7 +161,7 @@ SlashCmdList["OBH"] = function(msg)
 end
 
 -- ==========================================
--- 3. ADVANCED RANGED ENGINE - V8.5 (Tighter Aimed + Arcane priority)
+-- 3. ADVANCED RANGED ENGINE - V8.6 (Enhanced with QoL Features)
 -- ==========================================
 function OBH:RunAdvanced(useMulti)
     local now = GT()
@@ -191,28 +191,43 @@ function OBH:RunAdvanced(useMulti)
         end
     end
 
--- Aggro Management
-local inGroup = (GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0)
-if inGroup and self.AutoFeign and UnitIsUnit("targettarget", "player") then
-    self.concSlot = self.concSlot or self:GetActionSlot(self.name[8], FORCED_SLOTS.conc)
-    self.fdSlot   = self.fdSlot   or self:GetActionSlot(self.name[6], FORCED_SLOTS.fd)
-    
-    local _, cDur = GetActionCooldown(self.concSlot)
-    if cDur == 0 then CastSpellByName(self.name[8]) end
-    
-    if not self.aggroTime then 
-        self.aggroTime = now
-    elseif (now - self.aggroTime) >= self.AggroDelay then
-        local _, fdDur = GetActionCooldown(self.fdSlot)
-        if fdDur == 0 then
-            CastSpellByName(self.name[6])
-            self.aggroTime = nil
+    -- ==========================================
+    -- QoL FEATURE: Auto-Mark Target
+    -- ==========================================
+    local targetID = (UnitGUID and UnitGUID("target")) or UnitName("target")
+    local targetHP = (UnitHealth("target") / UnitHealthMax("target")) * 100
+
+    if self.AutoMark and targetHP > self.MarkHealthCutoff and not self:HasMark() then
+        if self.lastMarkGUID ~= targetID or (now - self.lastMarkTime) > self.MarkRetryDelay then
+            CastSpellByName(self.name[7])
+            self.lastMarkTime = now
+            self.lastMarkGUID = targetID
             return
         end
     end
-else 
-    self.aggroTime = nil 
-end
+
+    -- Aggro Management
+    local inGroup = (GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0)
+    if inGroup and self.AutoFeign and UnitIsUnit("targettarget", "player") then
+        self.concSlot = self.concSlot or self:GetActionSlot(self.name[8], FORCED_SLOTS.conc)
+        self.fdSlot   = self.fdSlot   or self:GetActionSlot(self.name[6], FORCED_SLOTS.fd)
+        
+        local _, cDur = GetActionCooldown(self.concSlot)
+        if cDur == 0 then CastSpellByName(self.name[8]) end
+        
+        if not self.aggroTime then 
+            self.aggroTime = now
+        elseif (now - self.aggroTime) >= self.AggroDelay then
+            local _, fdDur = GetActionCooldown(self.fdSlot)
+            if fdDur == 0 then
+                CastSpellByName(self.name[6])
+                self.aggroTime = nil
+                return
+            end
+        end
+    else 
+        self.aggroTime = nil 
+    end
 
     if self:IsCasting() then return end
 
@@ -222,6 +237,14 @@ end
     self.ssSlot   = self.ssSlot   or self:GetActionSlot(self.name[3], FORCED_SLOTS.ss)
     self.msSlot   = self.msSlot   or self:GetActionSlot(self.name[5], FORCED_SLOTS.ms)
 
+    if self.asSlot == FORCED_SLOTS.as and not GetActionInfo(self.asSlot) then
+        if not OBH.warned then
+            DEFAULT_CHAT_FRAME:AddMessage("|cffff0000[OBH] WARNING: Aimed Shot not found on action bars!|r")
+            DEFAULT_CHAT_FRAME:AddMessage("|cffff0000Please place Aimed Shot somewhere visible.|r")
+            OBH.warned = true
+        end
+    end
+
     local timeToNextAuto = self.next and (self.next - now) or 0
     if timeToNextAuto < 0 then timeToNextAuto = 0 end
 
@@ -229,26 +252,43 @@ end
     local _, msCD = GetActionCooldown(self.msSlot)
     local _, arcCD = GetActionCooldown(self.arcSlot)
 
-    -- 1. Aimed Shot - Highest priority (checked first and most aggressively)
-    if asCD <= 0.1 and timeToNextAuto > 1.5 then
+    -- ==========================================
+    -- QoL FEATURE: Weapon Speed Scaling + Lag Compensation
+    -- ==========================================
+    local weaponSpeed = UnitRangedDamage("player") or 3
+    local hasteFactor = (self.baseSpeed) and (weaponSpeed / self.baseSpeed) or 1
+    local currentSteadyCast = self.BaseSteady * hasteFactor
+    local dynamicBuffer = weaponSpeed * self.BufferPercent
+
+    -- Apply lag compensation to cooldown checks
+    local asCD_Adjusted = asCD - self.RaidLagBuffer
+    local msCD_Adjusted = msCD - self.RaidLagBuffer
+    local arcCD_Adjusted = arcCD - self.RaidLagBuffer
+
+    -- ==========================================
+    -- ROTATION WITH ENHANCED TIMING WINDOWS
+    -- ==========================================
+
+    -- 1. Aimed Shot - Highest priority (with lag-adjusted CD check)
+    if asCD_Adjusted <= self.PriorityWindow and timeToNextAuto > 1.5 then
         CastSpellByName(self.name[1])
         return
     end
 
-    -- 2. Multi-Shot
-    if useMulti and msCD <= 0.1 and timeToNextAuto > 1.2 then
+    -- 2. Multi-Shot (with lag-adjusted CD check)
+    if useMulti and msCD_Adjusted <= self.PriorityWindow and timeToNextAuto > 1.2 then
         CastSpellByName(self.name[5])
         return
     end
 
-    -- 3. Arcane Shot - High priority filler (fires whenever ready)
-    if arcCD <= 0.1 and timeToNextAuto > 0.7 then
+    -- 3. Arcane Shot - High priority filler (with lag-adjusted CD check)
+    if arcCD_Adjusted <= self.PriorityWindow and timeToNextAuto > 0.7 then
         CastSpellByName(self.name[4])
         return
     end
 
-    -- 4. Steady Shot - True last resort filler only
-    local ssWindow = (UnitRangedDamage("player") or 3) * 0.65
+    -- 4. Steady Shot - Dynamic window based on weapon speed + haste
+    local ssWindow = (weaponSpeed < 1.9) and 0.25 or (currentSteadyCast + dynamicBuffer)
     if timeToNextAuto > ssWindow then
         CastSpellByName(self.name[3])
         return
@@ -439,5 +479,6 @@ end
 -- LOAD MESSAGE
 -- ==========================================
 local aspectStatus = OBH.AspectEnabled and "|cff00ff00ENABLED" or "|cffff0000DISABLED"
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V8.5 (Final Priority Tuning) Loaded.|r Aspect Manager: " .. aspectStatus)
-DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00New Engine: /run OBH:RunAdvanced(true)   |   /run OBH:RunAdvanced(false)|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V8.6 (QoL Enhanced) Loaded.|r Aspect Manager: " .. aspectStatus)
+DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Advanced Engine: /run OBH:RunAdvanced(true)   |   /run OBH:RunAdvanced(false)|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Classic Engine: /run OBH:Run(true)   |   /run OBH:Run(false)|r")
