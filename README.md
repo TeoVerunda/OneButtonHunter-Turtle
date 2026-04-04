@@ -25,7 +25,7 @@ One Button Hunter is a lightweight Hunter addon that lets you run both ranged an
 ### Smart Aspect System
 - Automatic Aspect of the Hawk (Ranged)
 - Automatic Aspect of the Wolf (Melee)
-- Viper Aspect with hysteresis: Activates at ≤5% mana and stays active until 30% mana
+- Viper Aspect with hysteresis: Activates at ≤10% mana and stays active until 40% mana
 - Toggleable with `/obh aspect on | off`
 
 ## Requirements
