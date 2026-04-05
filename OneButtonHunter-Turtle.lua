@@ -2,6 +2,7 @@ local GT = GetTime
 
 OBH = {}   -- Ranged / Global
 OBHM = {}  -- Melee / Survival
+OBHBeast = {} -- Beast Mastery Engine
 
 -- ==========================================
 -- 1. CONFIGURATION
@@ -161,7 +162,7 @@ SlashCmdList["OBH"] = function(msg)
 end
 
 -- ==========================================
--- 3. ADVANCED RANGED ENGINE - V8.6 (Enhanced with QoL Features)
+-- 3. ADVANCED RANGED ENGINE - V8.6 (Fixed for 1.12)
 -- ==========================================
 function OBH:RunAdvanced(useMulti)
     local now = GT()
@@ -191,9 +192,7 @@ function OBH:RunAdvanced(useMulti)
         end
     end
 
-    -- ==========================================
-    -- QoL FEATURE: Auto-Mark Target
-    -- ==========================================
+    -- Auto-Mark Target
     local targetID = (UnitGUID and UnitGUID("target")) or UnitName("target")
     local targetHP = (UnitHealth("target") / UnitHealthMax("target")) * 100
 
@@ -237,11 +236,15 @@ function OBH:RunAdvanced(useMulti)
     self.ssSlot   = self.ssSlot   or self:GetActionSlot(self.name[3], FORCED_SLOTS.ss)
     self.msSlot   = self.msSlot   or self:GetActionSlot(self.name[5], FORCED_SLOTS.ms)
 
-    if self.asSlot == FORCED_SLOTS.as and not GetActionInfo(self.asSlot) then
-        if not OBH.warned then
-            DEFAULT_CHAT_FRAME:AddMessage("|cffff0000[OBH] WARNING: Aimed Shot not found on action bars!|r")
-            DEFAULT_CHAT_FRAME:AddMessage("|cffff0000Please place Aimed Shot somewhere visible.|r")
-            OBH.warned = true
+    -- Simple warning without GetActionInfo (1.12 compatible)
+    if self.asSlot == FORCED_SLOTS.as then
+        local name = GetActionText(self.asSlot) or ""
+        if name == "" then
+            if not OBH.warned then
+                DEFAULT_CHAT_FRAME:AddMessage("|cffff0000[OBH] WARNING: Aimed Shot not found on action bars!|r")
+                DEFAULT_CHAT_FRAME:AddMessage("|cffff0000Please place Aimed Shot somewhere visible.|r")
+                OBH.warned = true
+            end
         end
     end
 
@@ -252,42 +255,35 @@ function OBH:RunAdvanced(useMulti)
     local _, msCD = GetActionCooldown(self.msSlot)
     local _, arcCD = GetActionCooldown(self.arcSlot)
 
-    -- ==========================================
-    -- QoL FEATURE: Weapon Speed Scaling + Lag Compensation
-    -- ==========================================
+    -- Weapon Speed Scaling + Lag Compensation
     local weaponSpeed = UnitRangedDamage("player") or 3
     local hasteFactor = (self.baseSpeed) and (weaponSpeed / self.baseSpeed) or 1
     local currentSteadyCast = self.BaseSteady * hasteFactor
     local dynamicBuffer = weaponSpeed * self.BufferPercent
 
-    -- Apply lag compensation to cooldown checks
     local asCD_Adjusted = asCD - self.RaidLagBuffer
     local msCD_Adjusted = msCD - self.RaidLagBuffer
     local arcCD_Adjusted = arcCD - self.RaidLagBuffer
 
-    -- ==========================================
-    -- ROTATION WITH ENHANCED TIMING WINDOWS
-    -- ==========================================
-
-    -- 1. Aimed Shot - Highest priority (with lag-adjusted CD check)
+    -- 1. Aimed Shot
     if asCD_Adjusted <= self.PriorityWindow and timeToNextAuto > 1.5 then
         CastSpellByName(self.name[1])
         return
     end
 
-    -- 2. Multi-Shot (with lag-adjusted CD check)
+    -- 2. Multi-Shot
     if useMulti and msCD_Adjusted <= self.PriorityWindow and timeToNextAuto > 1.2 then
         CastSpellByName(self.name[5])
         return
     end
 
-    -- 3. Arcane Shot - High priority filler (with lag-adjusted CD check)
+    -- 3. Arcane Shot
     if arcCD_Adjusted <= self.PriorityWindow and timeToNextAuto > 0.7 then
         CastSpellByName(self.name[4])
         return
     end
 
-    -- 4. Steady Shot - Dynamic window based on weapon speed + haste
+    -- 4. Steady Shot
     local ssWindow = (weaponSpeed < 1.9) and 0.25 or (currentSteadyCast + dynamicBuffer)
     if timeToNextAuto > ssWindow then
         CastSpellByName(self.name[3])
@@ -314,11 +310,14 @@ function OBH:Run(useMulti)
     self.fdSlot   = self.fdSlot   or self:GetActionSlot(self.name[6], FORCED_SLOTS.fd)
     self.concSlot = self.concSlot or self:GetActionSlot(self.name[8], FORCED_SLOTS.conc)
 
-    if self.asSlot == FORCED_SLOTS.as and not GetActionInfo(self.asSlot) then
-        if not OBH.warned then
-            DEFAULT_CHAT_FRAME:AddMessage("|cffff0000[OBH] WARNING: Aimed Shot not found on action bars!|r")
-            DEFAULT_CHAT_FRAME:AddMessage("|cffff0000Please place Aimed Shot somewhere visible.|r")
-            OBH.warned = true
+    if self.asSlot == FORCED_SLOTS.as then
+        local name = GetActionText(self.asSlot) or ""
+        if name == "" then
+            if not OBH.warned then
+                DEFAULT_CHAT_FRAME:AddMessage("|cffff0000[OBH] WARNING: Aimed Shot not found on action bars!|r")
+                DEFAULT_CHAT_FRAME:AddMessage("|cffff0000Please place Aimed Shot somewhere visible.|r")
+                OBH.warned = true
+            end
         end
     end
 
@@ -476,9 +475,68 @@ function OBHM:Run(isAoE)
 end
 
 -- ==========================================
+-- 6. BEAST MASTERY ENGINE - V9.0 (Simplified - No Kill Command)
+-- ==========================================
+function OBHBeast:Run(useMulti)
+    local now = GT()
+    if (now - OBH.lastRun) < OBH.InputLagSafety then return end
+    OBH.lastRun = now
+
+    if not OBH.enabled or not UnitExists("target") or UnitIsDead("target") or not UnitCanAttack("player", "target") then return end
+
+    -- Safe Auto Shot activation
+    if not OBH.auto then
+        if IsActionInRange(OBH.asSlot or 1) == 1 then
+            CastSpellByName("Auto Shot")
+        end
+    end
+
+    -- Aspect Logic
+    if OBH.AspectEnabled then
+        local manaP = (UnitMana("player") / UnitManaMax("player")) * 100
+        if manaP <= OBH.ViperLow then
+            if not OBH:HasBuff(OBH.ViperTexture) then
+                CastSpellByName("Aspect of the Viper")
+            end
+        elseif manaP >= OBH.ViperHigh then
+            if not OBH:HasBuff(OBH.HawkTexture) then
+                CastSpellByName("Aspect of the Hawk")
+            end
+        end
+    end
+
+    if OBH:IsCasting() then return end
+
+    -- Slot Detection
+    OBH.ssSlot = OBH.ssSlot or OBH:GetActionSlot(OBH.name[3], FORCED_SLOTS.ss)
+    OBH.msSlot = OBH.msSlot or OBH:GetActionSlot(OBH.name[5], FORCED_SLOTS.ms)
+
+    local timeToNextAuto = OBH.next and (OBH.next - now) or 0
+    if timeToNextAuto < 0 then timeToNextAuto = 0 end
+
+    local _, msCD = GetActionCooldown(OBH.msSlot)
+
+    -- Multi-Shot in AoE mode (before Steady Shot)
+    if useMulti and msCD <= 0.1 and timeToNextAuto > 1.1 then
+        CastSpellByName(OBH.name[5])
+        return
+    end
+
+    -- Steady Shot - Main filler
+    local ssWindow = (UnitRangedDamage("player") or 3) * 0.65
+    if timeToNextAuto > ssWindow then
+        CastSpellByName(OBH.name[3])
+        return
+    end
+
+    -- Nothing fits safely → do nothing, let Auto Shot fire
+end
+
+-- ==========================================
 -- LOAD MESSAGE
 -- ==========================================
 local aspectStatus = OBH.AspectEnabled and "|cff00ff00ENABLED" or "|cffff0000DISABLED"
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V8.6 (QoL Enhanced) Loaded.|r Aspect Manager: " .. aspectStatus)
-DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Advanced Engine: /run OBH:RunAdvanced(true)   |   /run OBH:RunAdvanced(false)|r")
-DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Classic Engine: /run OBH:Run(true)   |   /run OBH:Run(false)|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V9.0 (BM Simplified - No Kill Command) Loaded.|r Aspect Manager: " .. aspectStatus)
+DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00MM Advanced: /run OBH:RunAdvanced(true/false)|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00BM Simplified: /run OBHBeast:Run(true/false)   (true = AoE)|r")
+DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Classic: /run OBH:Run(true/false)|r")
