@@ -2,17 +2,23 @@
 
 Designed for Turtle WoW – Nightmares of Ursol (1.18.1+)
 
-One Button Hunter is a lightweight Hunter addon that lets you run both ranged and melee (Survival) rotations using simple macros while maintaining accurate shot timing and smart utility.
+One Button Hunter is a lightweight Hunter addon that lets you run both ranged (Marksman & Beast Mastery) and melee (Survival) rotations using simple macros while maintaining accurate shot timing and smart utility.
 
 ## Features
 
-### Ranged Mode (Marksman-style)
+### Ranged Mode (Marksman-style - Advanced Engine)
 - Prioritizes Aimed Shot when off cooldown
 - Dynamic Steady Shot timing with haste compensation
 - Smart Arcane Shot / Multi-Shot weaving
 - Prevents Auto Shot clipping
 - Automatic Hunter's Mark
 - Concussive Shot + Feign Death on aggro (in group)
+
+### Beast Mastery Mode (Simplified Engine)
+- Clean Auto Shot + Steady Shot rotation
+- Multi-Shot as AoE filler
+- Kill Command included in Macro
+- Same smart utilities as Marksman (Mark, Feign, aspects)
 
 ### Melee Mode (Survival / Stalker)
 - Full melee rotation with Lacerate priority
@@ -41,14 +47,15 @@ One Button Hunter is a lightweight Hunter addon that lets you run both ranged an
 ## Setup
 Make sure the following abilities exist on your action bar:
 
-**(Marksman)**
-- Aimed Shot
+**(Marksman & Beast Mastery)**
+- Aimed Shot (for MM)
 - Auto Shot
 - Steady Shot
-- Arcane Shot
+- Arcane Shot (for MM)
 - Multi-Shot
 - Feign Death
 - Concussive Shot
+- Kill Command (optional – macro it yourself for BM)
 
 **(Survival)**
 - Lacerate
@@ -63,7 +70,7 @@ The addon scans your action bar to locate these abilities.
 
 ## Macro Usage
 
-### Ranged – Normal / AoE Mode
+### Ranged – Marksman Normal / AoE Mode
 
 ```
 #showtooltip Aimed Shot
@@ -88,6 +95,25 @@ Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OB
 /run OBH:RunAdvanced((false) or [/run if UnitExists("target") then PetAttack() OBH:RunAdvanced((false) end] for pet attack
 ```
 
+### Beast Mastery – Normal
+```
+#showtooltip Aimed Shot
+/cast !Trueshot Aura
+/cast [combat] Rapid Fire
+/run if UnitExists("target") then PetAttack() OBHBeast:Run(true) end
+/cast Kill Command
+```
+
+### Beast Mastery – Single Target
+```
+#showtooltip Aimed Shot
+/cast !Trueshot Aura
+/cast [combat] Rapid Fire
+/run if UnitExists("target") then PetAttack() OBHBeast:Run(false) end
+/cast Kill Command
+
+```
+
 ### Melee – AoE
 
 ```
@@ -107,10 +133,11 @@ Replace /run OBH:Run(true) with /run if UnitExists("target") then PetAttack() OB
 ```
 
 
+
 ## Aspect Behavior
-- **Hawk** → Used automatically in ranged mode (when mana > 5%)
-- **Wolf** → Used automatically in melee mode (when mana > 5%)
-- **Viper** → Automatically activates when mana ≤ 5% and stays on until mana reaches 30%
+- **Hawk** → Used automatically in ranged mode (when mana > 10%)
+- **Wolf** → Used automatically in melee mode (when mana > 10%)
+- **Viper** → Automatically activates when mana ≤ 10% and stays on until mana reaches 40%
 
 You can toggle the Aspect Manager with:
 - `/obh aspect on`
@@ -118,8 +145,8 @@ You can toggle the Aspect Manager with:
 - `/obh aspect` (shows status)
 
 ## Notes
-- The new advanced ranged engine (OBH:RunAdvanced) is now the default for better DPS.
-- The old stable engine (OBH:Run) is kept as a backup.
+- The advanced ranged engine (`OBH:RunAdvanced`) is the recommended Marksman rotation.
+- Beast Mastery uses a simplified engine (`OBHBeast:Run`) focused on Auto Shot + Steady Shot (Kill Command can be macroed separately).
 - Melee targeting is strict to avoid accidental pet pulls.
 - All aspects use simple "if missing → cast" logic to prevent flickering.
 - Designed for high spam tolerance (you can mash the button safely).
@@ -129,6 +156,6 @@ You can toggle the Aspect Manager with:
 On login or reload:
 
 ```
-OBH V8.6 Loaded. Aspect Manager: ENABLED
+OBH V9.0 (BM Simplified) Loaded. Aspect Manager: ENABLED
 Use /obh aspect on | off | status
 ```
