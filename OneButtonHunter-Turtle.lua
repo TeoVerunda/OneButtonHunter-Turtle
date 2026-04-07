@@ -384,6 +384,7 @@ end
 
 -- ==========================================
 -- 3b. BEAST MASTER ENGINE - V8.6 (Copy of Advanced, no Aimed Shot, + Bestial Wrath)
+-- PRIORITY: Kill Command > Steady > Multi > Arcane
 -- ==========================================
 function OBHBeast:Run(useMulti)
     local now = GT()
@@ -494,7 +495,8 @@ function OBHBeast:Run(useMulti)
     local arcCD_Adjusted = arcCD - OBH.RaidLagBuffer
 
     -- ==========================================
-    -- ROTATION WITH ENHANCED TIMING WINDOWS (NO AIMED SHOT)
+    -- ROTATION WITH ENHANCED TIMING WINDOWS
+    -- PRIORITY: Kill Command > Multi > Arcane > Steady
     -- ==========================================
 
     -- 1. Kill Command - Highest priority (with lag-adjusted CD check)
@@ -503,21 +505,21 @@ function OBHBeast:Run(useMulti)
         return
     end
 
-    -- 2. Multi-Shot (with lag-adjusted CD check)
+    -- 2. Multi-Shot (with lag-adjusted CD check) (SECOND priority)
     if useMulti and msCD_Adjusted <= OBH.PriorityWindow and timeToNextAuto > 1.2 then
         CastSpellByName(self.name[5])
         return
     end
 
-    -- 3. Arcane Shot - High priority filler (with lag-adjusted CD check)
+    -- 3. Arcane Shot - High priority filler (with lag-adjusted CD check) (THIRD priority)
     if arcCD_Adjusted <= OBH.PriorityWindow and timeToNextAuto > 0.7 then
         CastSpellByName(self.name[4])
         return
     end
 
-    -- 4. Steady Shot - Dynamic window based on weapon speed + haste
+    -- 4. Steady Shot - Only if nothing else is ready (FOURTH priority)
     local ssWindow = (weaponSpeed < 1.9) and 0.25 or (currentSteadyCast + dynamicBuffer)
-    if timeToNextAuto > ssWindow then
+    if timeToNextAuto > ssWindow + 0.15 then
         CastSpellByName(self.name[3])
         return
     end
@@ -707,7 +709,7 @@ end
 -- LOAD MESSAGE
 -- ==========================================
 local aspectStatus = OBH.AspectEnabled and "|cff00ff00ENABLED" or "|cffff0000DISABLED"
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V9.2 Loaded.|r Aspect Manager: " .. aspectStatus)
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V8.6 (QoL Enhanced) Loaded.|r Aspect Manager: " .. aspectStatus)
 DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Advanced Engine: /run OBH:RunAdvanced(true)   |   /run OBH:RunAdvanced(false)|r")
 DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Classic Engine: /run OBH:Run(true)   |   /run OBH:Run(false)|r")
 DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Beast Master: /run OBHBeast:Run(true)   |   /run OBHBeast:Run(false)|r")
