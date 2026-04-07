@@ -2,5 +2,5 @@
 ## Title: One Button Hunter (TurtleWoW)
 ## Notes: Dynamic priority rotation engine.
 ## Author: TeoVerunda
-## Version: 9.1
+## Version: 9.2
 OneButtonHunter-Turtle.lua
