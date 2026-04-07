@@ -14,6 +14,7 @@ OBH.MarkRetryDelay = 5.0
 OBH.AggroDelay = 0.5
 OBH.AlertCooldown = 3.0
 OBH.InputLagSafety = 0.1
+OBH.FeignDeathLockout = 1.5  -- Lockout duration after FD to prevent Auto Shot flickering
 
 OBH.BaseSteady = 1.5
 OBH.BufferPercent = 0.02
@@ -37,7 +38,8 @@ local FORCED_SLOTS = {
     fd = 65, conc = 66,
     rapt = 67, mong = 68, wing = 69,
     lace = 70, carve = 71,
-    exp = 72, immol = 73
+    exp = 72, immol = 73,
+    bw = 74
 }
 
 -- SPELL NAMES
@@ -58,7 +60,8 @@ OBHBeast.name = {
     [1]  = "Kill Command",    [2]  = "Auto Shot",
     [3]  = "Steady Shot",     [4]  = "Arcane Shot",
     [5]  = "Multi-Shot",      [6]  = "Feign Death",
-    [7]  = "Hunter's Mark",   [8]  = "Concussive Shot"
+    [7]  = "Hunter's Mark",   [8]  = "Concussive Shot",
+    [9]  = "Bestial Wrath"
 }
 
 -- ==========================================
@@ -69,15 +72,18 @@ OBH.f = CreateFrame("Frame", "OBH_Events", UIParent)
 
 OBH.f:RegisterEvent("START_AUTOREPEAT_SPELL")
 OBH.f:RegisterEvent("STOP_AUTOREPEAT_SPELL")
+OBH.f:RegisterEvent("SPELL_CAST_SUCCESS")
 
 OBH.auto, OBH.next, OBH.enabled = false, nil, true
 OBH.baseSpeed, OBH.aggroTime, OBH.lastAlert, OBH.lastRun = nil, nil, 0, 0
 OBH.lastMarkTime, OBH.lastMarkGUID = 0, nil
 OBH.warned = false
+OBH.feignLockoutTime = 0  -- Tracks when Feign Death was cast
 
 OBHBeast.auto, OBHBeast.next, OBHBeast.enabled = false, nil, true
 OBHBeast.baseSpeed, OBHBeast.aggroTime, OBHBeast.lastAlert, OBHBeast.lastRun = nil, nil, 0, 0
 OBHBeast.lastMarkTime, OBHBeast.lastMarkGUID = 0, nil
+OBHBeast.feignLockoutTime = 0  -- Tracks when Feign Death was cast
 
 OBH.f:SetScript("OnEvent", function()
     if event == "START_AUTOREPEAT_SPELL" then
@@ -91,6 +97,12 @@ OBH.f:SetScript("OnEvent", function()
     elseif event == "STOP_AUTOREPEAT_SPELL" then
         OBH.auto, OBH.next = false, nil
         OBHBeast.auto, OBHBeast.next = false, nil
+    elseif event == "SPELL_CAST_SUCCESS" then
+        local spellName = GetSpellInfo(GetEventArg())
+        if spellName == "Feign Death" then
+            OBH.feignLockoutTime = GT() + OBH.FeignDeathLockout
+            OBHBeast.feignLockoutTime = GT() + OBH.FeignDeathLockout
+        end
     end
 end)
 
@@ -236,7 +248,27 @@ function OBH:RunAdvanced(useMulti)
     if (now - self.lastRun) < self.InputLagSafety then return end
     self.lastRun = now
 
+    -- ==========================================
+    -- FEIGN DEATH LOCKOUT CHECK (Prevents Auto Shot flickering)
+    -- ==========================================
+    if now < self.feignLockoutTime then return end
+
     if not self.enabled or not UnitExists("target") or UnitIsDead("target") or not UnitCanAttack("player", "target") then return end
+
+    -- ==========================================
+    -- TOP PRIORITY: Auto-Mark Target (MUST be first before everything)
+    -- ==========================================
+    local targetID = (UnitGUID and UnitGUID("target")) or UnitName("target")
+    local targetHP = (UnitHealth("target") / UnitHealthMax("target")) * 100
+
+    if self.AutoMark and targetHP > self.MarkHealthCutoff and not self:HasMark() then
+        if self.lastMarkGUID ~= targetID or (now - self.lastMarkTime) > self.MarkRetryDelay then
+            CastSpellByName(self.name[7])
+            self.lastMarkTime = now
+            self.lastMarkGUID = targetID
+            return
+        end
+    end
 
     -- Safe Auto Shot activation
     if not self.auto then
@@ -259,22 +291,7 @@ function OBH:RunAdvanced(useMulti)
         end
     end
 
-    -- ==========================================
-    -- QoL FEATURE: Auto-Mark Target
-    -- ==========================================
-    local targetID = (UnitGUID and UnitGUID("target")) or UnitName("target")
-    local targetHP = (UnitHealth("target") / UnitHealthMax("target")) * 100
-
-    if self.AutoMark and targetHP > self.MarkHealthCutoff and not self:HasMark() then
-        if self.lastMarkGUID ~= targetID or (now - self.lastMarkTime) > self.MarkRetryDelay then
-            CastSpellByName(self.name[7])
-            self.lastMarkTime = now
-            self.lastMarkGUID = targetID
-            return
-        end
-    end
-
-    -- Aggro Management
+    -- Aggro Management (Only trigger if NOT in party solo farming)
     local inGroup = (GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0)
     if inGroup and self.AutoFeign and UnitIsUnit("targettarget", "player") then
         self.concSlot = self.concSlot or self:GetActionSlot(self.name[8], FORCED_SLOTS.conc)
@@ -366,14 +383,34 @@ function OBH:RunAdvanced(useMulti)
 end
 
 -- ==========================================
--- 3b. BEAST MASTER ENGINE - V8.6 (Copy of Advanced, no Aimed Shot)
+-- 3b. BEAST MASTER ENGINE - V8.6 (Copy of Advanced, no Aimed Shot, + Bestial Wrath)
 -- ==========================================
 function OBHBeast:Run(useMulti)
     local now = GT()
     if (now - self.lastRun) < OBH.InputLagSafety then return end
     self.lastRun = now
 
+    -- ==========================================
+    -- FEIGN DEATH LOCKOUT CHECK (Prevents Auto Shot flickering)
+    -- ==========================================
+    if now < self.feignLockoutTime then return end
+
     if not self.enabled or not UnitExists("target") or UnitIsDead("target") or not UnitCanAttack("player", "target") then return end
+
+    -- ==========================================
+    -- TOP PRIORITY: Auto-Mark Target (MUST be first before everything)
+    -- ==========================================
+    local targetID = (UnitGUID and UnitGUID("target")) or UnitName("target")
+    local targetHP = (UnitHealth("target") / UnitHealthMax("target")) * 100
+
+    if OBH.AutoMark and targetHP > OBH.MarkHealthCutoff and not self:HasMark() then
+        if self.lastMarkGUID ~= targetID or (now - self.lastMarkTime) > OBH.MarkRetryDelay then
+            CastSpellByName(self.name[7])
+            self.lastMarkTime = now
+            self.lastMarkGUID = targetID
+            return
+        end
+    end
 
     -- Safe Auto Shot activation
     if not self.auto then
@@ -397,21 +434,15 @@ function OBHBeast:Run(useMulti)
     end
 
     -- ==========================================
-    -- QoL FEATURE: Auto-Mark Target
+    -- Bestial Wrath (Instant cast, cast when available)
     -- ==========================================
-    local targetID = (UnitGUID and UnitGUID("target")) or UnitName("target")
-    local targetHP = (UnitHealth("target") / UnitHealthMax("target")) * 100
-
-    if OBH.AutoMark and targetHP > OBH.MarkHealthCutoff and not self:HasMark() then
-        if self.lastMarkGUID ~= targetID or (now - self.lastMarkTime) > OBH.MarkRetryDelay then
-            CastSpellByName(self.name[7])
-            self.lastMarkTime = now
-            self.lastMarkGUID = targetID
-            return
-        end
+    self.bwSlot = self.bwSlot or self:GetActionSlot(self.name[9], FORCED_SLOTS.bw)
+    local _, bwCD = GetActionCooldown(self.bwSlot)
+    if bwCD == 0 then
+        CastSpellByName(self.name[9])
     end
 
-    -- Aggro Management
+    -- Aggro Management (Only trigger if NOT in party solo farming)
     local inGroup = (GetNumPartyMembers() > 0 or GetNumRaidMembers() > 0)
     if inGroup and OBH.AutoFeign and UnitIsUnit("targettarget", "player") then
         self.concSlot = self.concSlot or self:GetActionSlot(self.name[8], FORCED_SLOTS.conc)
@@ -676,7 +707,7 @@ end
 -- LOAD MESSAGE
 -- ==========================================
 local aspectStatus = OBH.AspectEnabled and "|cff00ff00ENABLED" or "|cffff0000DISABLED"
-DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V9.1 (BM Simplified) Loaded.|r Aspect Manager: " .. aspectStatus)
+DEFAULT_CHAT_FRAME:AddMessage("|cffffaa00OBH V9.2 Loaded.|r Aspect Manager: " .. aspectStatus)
 DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Advanced Engine: /run OBH:RunAdvanced(true)   |   /run OBH:RunAdvanced(false)|r")
 DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Classic Engine: /run OBH:Run(true)   |   /run OBH:Run(false)|r")
 DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Beast Master: /run OBHBeast:Run(true)   |   /run OBHBeast:Run(false)|r")
