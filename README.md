@@ -156,6 +156,6 @@ You can toggle the Aspect Manager with:
 On login or reload:
 
 ```
-OBH V9.1 (BM Simplified) Loaded. Aspect Manager: ENABLED
+OBH V9.2 (BM Simplified) Loaded. Aspect Manager: ENABLED
 Use /obh aspect on | off | status
 ```
